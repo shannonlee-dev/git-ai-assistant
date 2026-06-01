@@ -49,6 +49,48 @@ API 호출 없이 Git 수집과 safe-mode 적용 상태만 확인하려면 dry-r
 python main.py commit --dry-run --safe-mode
 ```
 
+## Team Convention
+
+프로젝트 루트의 `.ai-gitgen.yml`로 커밋/PR 생성 규칙을 커스터마이징할 수 있습니다. 기본 경로 대신 다른 파일을 쓰려면 `--config`를 전달합니다.
+
+```sh
+python main.py pr --config .ai-gitgen.yml
+```
+
+현재 예시는 `codyssey-b2-2-team-mission/git-flow-utility-lab`의 히스토리와 `docs/CONTRIBUTING.md`에서 확인한 팀 컨벤션을 반영합니다.
+
+```yml
+commit:
+  prefixes:
+    - feat
+    - fix
+    - docs
+    - test
+    - chore
+  scope_required: false
+  subject_max_length: 72
+
+branch:
+  patterns:
+    - feature/<name>-<topic>
+    - chore/<name>-<topic>
+
+pr:
+  sections:
+    - What
+    - Why
+    - How
+  tone: concise, factual, and review-focused
+  issue_reference: "Include Closes #<issue_number> or Fixes #<issue_number>."
+  checklist:
+    - Latest main reflected before merge
+    - Conflicts resolved
+    - Validation or test result recorded
+    - Review comments resolved
+```
+
+설정된 prefix, scope 필수 여부, 브랜치 패턴, PR 섹션, 이슈 참조, checklist는 AI 프롬프트와 출력 검증에 함께 반영됩니다.
+
 ## Output Examples
 
 커밋 메시지 출력 예시:

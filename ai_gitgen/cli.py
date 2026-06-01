@@ -8,6 +8,7 @@ from pathlib import Path
 import sys
 
 from .ai_client import AIClient, APIError
+from .convention import describe_convention, load_convention
 from .git_tools import GitError, collect_changes
 from .output import (
     build_prompt,
@@ -38,7 +39,8 @@ def build_parser() -> argparse.ArgumentParser:
     for name in ("commit", "pr"):
         sub = subparsers.add_parser(name)
         add_generation_options(sub)
-    subparsers.add_parser("validate-output")
+    validate = subparsers.add_parser("validate-output")
+    validate.add_argument("--config", default=".ai-gitgen.yml", help="Team convention config file")
     return parser
 
 
@@ -47,6 +49,7 @@ def add_generation_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--temperature", type=float, default=0.2, help="AI temperature (default: 0.2)")
     parser.add_argument("--max-tokens", type=int, default=700, help="Maximum generated tokens")
     parser.add_argument("--api-base-url", default=os.getenv("AI_API_BASE_URL", DEFAULT_API_BASE_URL))
+    parser.add_argument("--config", default=".ai-gitgen.yml", help="Team convention config file")
     parser.add_argument("--dry-run", action="store_true", help="Collect Git data and print prompt stats without API call")
     safety = parser.add_mutually_exclusive_group()
     safety.add_argument("--safe-mode", dest="safe_mode", action="store_true", default=True)
@@ -59,7 +62,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     if args.command == "validate-output":
-        return validate_from_stdin()
+        return validate_from_stdin(args.config)
     return run_generation(args)
 
 
@@ -76,6 +79,8 @@ def run_generation(args: argparse.Namespace) -> int:
         print("[INFO] 변경 사항이 없습니다. 커밋 메시지를 생성하지 않고 종료합니다.")
         return 0
 
+    convention = load_convention(changes.root, args.config)
+
     safety = apply_safe_mode(changes.diff, args.safe_mode, args.max_files, args.max_diff_lines)
     print(f"[INFO] Git diff 수집 완료: {changes.diff_line_count}줄")
     if args.safe_mode:
@@ -90,6 +95,7 @@ def run_generation(args: argparse.Namespace) -> int:
         print("[INFO] dry-run 모드: AI API를 호출하지 않습니다.")
         print(f"[INFO] AI API 호출 횟수: 0")
         print("--- Dry Run Summary ---")
+        print(describe_convention(convention))
         print("\n".join(changes.status.splitlines()[:20]))
         print(f"diff_lines_sent={len(safety.text.splitlines())}")
         return 0
@@ -99,7 +105,7 @@ def run_generation(args: argparse.Namespace) -> int:
         print('[ERROR] AI_API_KEY 환경변수가 설정되지 않았습니다. 예) export AI_API_KEY="YOUR_KEY"', file=sys.stderr)
         return 2
 
-    messages = build_prompt(args.command, changes.status, safety.text, changes.changed_files, args.max_files)
+    messages = build_prompt(args.command, changes.status, safety.text, changes.changed_files, args.max_files, convention)
     client = AIClient(api_key=api_key, base_url=args.api_base_url)
     print("[INFO] AI API 요청 중...")
     try:
@@ -116,8 +122,8 @@ def run_generation(args: argparse.Namespace) -> int:
 
     print(f"[INFO] AI API 호출 횟수: {client.call_count}")
     if args.command == "commit":
-        message = normalize_commit(raw, changes.changed_files)
-        ok, errors = validate_commit(message)
+        message = normalize_commit(raw, changes.changed_files, convention)
+        ok, errors = validate_commit(message, convention)
         if not ok:
             print("[ERROR] 생성된 커밋 메시지 검증 실패: " + "; ".join(errors), file=sys.stderr)
             return 1
@@ -126,8 +132,8 @@ def run_generation(args: argparse.Namespace) -> int:
         print(format_commit_output(message))
         return 0
     elif args.command == "pr":
-        title, body = normalize_pr(raw, changes.changed_files)
-        ok, errors = validate_pr(title, body)
+        title, body = normalize_pr(raw, changes.changed_files, convention)
+        ok, errors = validate_pr(title, body, convention)
         if not ok:
             print("[ERROR] 생성된 PR 초안 검증 실패: " + "; ".join(errors), file=sys.stderr)
             return 1
@@ -139,7 +145,8 @@ def run_generation(args: argparse.Namespace) -> int:
     return 2
 
 
-def validate_from_stdin() -> int:
+def validate_from_stdin(config_path: str = ".ai-gitgen.yml") -> int:
+    convention = load_convention(Path.cwd(), config_path)
     text = sys.stdin.read()
     if "--- PR Body ---" in text:
         title = ""
@@ -149,9 +156,9 @@ def validate_from_stdin() -> int:
             title = after_title.splitlines()[1].strip() if len(after_title.splitlines()) > 1 else ""
         if "--- PR Body ---" in text:
             body = text.split("--- PR Body ---", 1)[1]
-        ok, errors = validate_pr(title, body)
+        ok, errors = validate_pr(title, body, convention)
     else:
-        ok, errors = validate_commit(text)
+        ok, errors = validate_commit(text, convention)
     if ok:
         print("[PASS] 출력 형식 검증 통과")
         return 0

@@ -1,0 +1,27 @@
+commit:
+  prefixes:
+    - feat
+    - fix
+    - docs
+    - test
+    - chore
+  scope_required: false
+  subject_max_length: 72
+
+branch:
+  patterns:
+    - feature/<name>-<topic>
+    - chore/<name>-<topic>
+
+pr:
+  sections:
+    - What
+    - Why
+    - How
+  tone: concise, factual, and review-focused
+  issue_reference: "Include Closes #<issue_number> or Fixes #<issue_number>."
+  checklist:
+    - Latest main reflected before merge
+    - Conflicts resolved
+    - Validation or test result recorded
+    - Review comments resolved
