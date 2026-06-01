@@ -1,0 +1,77 @@
+"""Safe-mode masking and diff limiting."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+import re
+
+
+SECRET_PATTERNS = [
+    re.compile(r"(?i)(api[_-]?key|token|secret|password)(\s*[:=]\s*)([^\s'\"`]+)"), # (?!) 대소문자 구분 없이 
+    re.compile(r"\bsk-[A-Za-z0-9_-]{12,}\b"),
+    re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b"),
+    re.compile(r"\bAKIA[0-9A-Z]{16}\b"),
+]
+
+
+@dataclass(frozen=True)
+class SafetyResult:
+    text: str
+    masked_count: int
+    omitted_lines: int
+    omitted_files: int
+
+
+def mask_sensitive_text(text: str) -> tuple[str, int]:
+    masked = text
+    total = 0
+
+    def replace_secret_assignment(match: re.Match[str]) -> str:
+        nonlocal total
+        total += 1
+        return f"{match.group(1)}{match.group(2)}<MASKED_TOKEN>"
+
+    masked = SECRET_PATTERNS[0].sub(replace_secret_assignment, masked)
+    for pattern in SECRET_PATTERNS[1:]:
+        masked, count = pattern.subn("<MASKED_TOKEN>", masked)
+        total += count
+    return masked, total
+
+
+def limit_diff(text: str, max_files: int, max_lines: int) -> tuple[str, int, int]:
+    lines = text.splitlines()
+    kept: list[str] = []
+    seen_files = 0
+    omitted_files = 0
+    omitted_lines = 0
+    include_current_file = True
+
+    for line in lines:
+        if line.startswith("diff --git "):
+            seen_files += 1
+            include_current_file = seen_files <= max_files
+            if not include_current_file:
+                omitted_files += 1
+                continue
+        if not include_current_file:
+            omitted_lines += 1
+            continue
+        if len(kept) < max_lines:
+            kept.append(line)
+        else:
+            omitted_lines += 1
+
+    return "\n".join(kept), omitted_lines, omitted_files
+
+
+def apply_safe_mode(text: str, enabled: bool, max_files: int, max_lines: int) -> SafetyResult:
+    if not enabled:
+        return SafetyResult(text=text, masked_count=0, omitted_lines=0, omitted_files=0)
+    limited, omitted_lines, omitted_files = limit_diff(text, max_files, max_lines)
+    masked, masked_count = mask_sensitive_text(limited)
+    return SafetyResult(
+        text=masked,
+        masked_count=masked_count,
+        omitted_lines=omitted_lines,
+        omitted_files=omitted_files,
+    )
