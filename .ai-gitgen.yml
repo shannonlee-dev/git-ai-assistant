@@ -11,15 +11,14 @@ commit:
 branch:
   patterns:
     - feature/<name>-<topic>
-    - chore/<name>-<topic>
 
 pr:
+  title_max_length: 80
   sections:
     - What
     - Why
     - How
-  tone: concise, factual, and review-focused
-  issue_reference: "Include Closes #<issue_number> or Fixes #<issue_number>."
+  tone: concise, factual, review-focused, and action-oriented
   checklist:
     - Latest main reflected before merge
     - Conflicts resolved

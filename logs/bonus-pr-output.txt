@@ -1,0 +1,21 @@
+[INFO] 현재 브랜치: feature/sangheonlee-member-initials
+[INFO] Git status 수집 완료: 2개 파일 변경 감지
+[INFO] Git diff 수집 완료: 51줄
+[INFO] safe-mode 적용: 마스킹 0건, 생략 파일 0개, 생략 줄 0줄
+[INFO] AI API 요청 중...
+[INFO] AI API 호출 횟수: 1
+[DONE] PR 초안 생성 완료
+
+--- PR Title ---
+Add member_initials function to extract initials from normalized names
+
+--- PR Body ---
+## Why
+- Capture the reason for the current Git changes.
+
+## What
+- Update README.md
+- Update src/team_utils.py
+
+## How to Test
+- Run the project checks for this change.

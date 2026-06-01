@@ -7,7 +7,7 @@ import re
 
 
 SECRET_PATTERNS = [
-    re.compile(r"(?i)(api[_-]?key|token|secret|password)(\s*[:=]\s*)([^\s'\"`]+)"), # (?!) 대소문자 구분 없이 
+    re.compile(r"(?i)(api[_-]?key|token|secret|password)(\s*[:=]\s*)([^\s'\"`]+)"),
     re.compile(r"\bsk-[A-Za-z0-9_-]{12,}\b"),
     re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b"),
     re.compile(r"\bAKIA[0-9A-Z]{16}\b"),

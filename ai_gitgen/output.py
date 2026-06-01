@@ -4,10 +4,8 @@ from __future__ import annotations
 
 import re
 from textwrap import dedent
+from typing import Any
 
-from .convention import TeamConvention
-
-DEFAULT_CONVENTION = TeamConvention()
 PR_SECTION_ALIASES = {
     "why": "why",
     "what": "what",
@@ -19,6 +17,8 @@ PR_SECTION_ALIASES = {
     "validation": "test",
 }
 
+AIGitgenConfig = dict[str, Any]
+
 
 def build_prompt(
     mode: str,
@@ -26,40 +26,42 @@ def build_prompt(
     diff: str,
     files: list[str],
     max_files: int,
-    convention: TeamConvention = DEFAULT_CONVENTION,
+    config: AIGitgenConfig,
 ) -> list[dict[str, str]]:
     if mode not in {"commit", "pr"}:
         raise ValueError(f"Unsupported prompt mode: {mode}")
 
     file_list = "\n".join(f"- {name}" for name in files[:max_files]) or "- unknown"
     if mode == "commit":
-        scope_rule = "A scope is required." if convention.commit.scope_required else "Do not add a scope unless necessary."
+        commit = config["commit"]
+        scope_rule = "A scope is required." if commit["scope_required"] else "Do not add a scope unless necessary."
         task = dedent(
             f"""
             Generate a Git commit message from the supplied git status and git diff.
             Return only one concise title line, with no body or bullet list.
-            The title must be {convention.commit.subject_max_length} characters or fewer.
-            Use Conventional Commits with one of these prefixes: {", ".join(convention.commit.prefixes)}.
+            The title must be {commit["subject_max_length"]} characters or fewer.
+            Use Conventional Commits with one of these prefixes: {", ".join(commit["prefixes"])}.
             {scope_rule}
             """
         ).strip()
     elif mode == "pr":
-        sections = ", ".join(f"## {section}" for section in convention.pr.sections)
-        branch_patterns = ", ".join(convention.branch.patterns)
+        branch = config["branch"]
+        pr = config["pr"]
+        sections = ", ".join(f"## {section}" for section in pr["sections"])
+        branch_patterns = ", ".join(branch["patterns"])
         checklist = ""
-        if convention.pr.checklist:
+        if pr["checklist"]:
             checklist = "Include a final ## Checklist section with these unchecked items: " + ", ".join(
-                convention.pr.checklist
+                pr["checklist"]
             )
         task = dedent(
             f"""
             Generate a Pull Request draft from the supplied git status and git diff.
-            Return a one-line title, then a body with exactly these Markdown sections:
-            {sections}. Each section must include at least one bullet.
-            The PR title must be 80 characters or fewer.
-            Match this team tone: {convention.pr.tone}.
+            Return a one-line title, then a body with these Markdown sections:
+            {sections}. Each required section must include at least one bullet.
+            The PR title must be {pr["title_max_length"]} characters or fewer.
+            Match this team tone: {pr["tone"]}.
             Team branch naming convention: {branch_patterns}.
-            {convention.pr.issue_reference}
             {checklist}
             """
         ).strip()
@@ -102,9 +104,7 @@ def _section_key(text: str) -> str:
 
 def _section_kind(section: str) -> str:
     key = _section_key(section)
-    if key in {"why", "what"}:
-        return key
-    if key in {"how", "how to test"} or "test" in key or "validat" in key:
+    if "test" in key or "validat" in key:
         return "test"
     return PR_SECTION_ALIASES.get(key, "")
 
@@ -129,24 +129,44 @@ def fallback_title(prefix: str, files: list[str], limit: int = 72) -> str:
     return trim_line(f"{prefix}: update {target}", limit)
 
 
+def _commit_title_matches_config(title: str, config: AIGitgenConfig) -> bool:
+    commit = config["commit"]
+    prefix_pattern = "|".join(re.escape(prefix) for prefix in commit["prefixes"])
+    scope_part = r"\([^)]+\)" if commit["scope_required"] else r"(\([^)]+\))?"
+    return bool(re.match(rf"^({prefix_pattern}){scope_part}: .+", title))
+
+
+def _default_commit_prefix(config: AIGitgenConfig) -> str:
+    prefixes = config["commit"]["prefixes"]
+    return "chore" if "chore" in prefixes else prefixes[0]
+
+
 def normalize_commit(
     raw: str,
     files: list[str],
-    convention: TeamConvention = DEFAULT_CONVENTION,
+    config: AIGitgenConfig,
 ) -> str:
+    commit = config["commit"]
     title = next((_strip_label(line) for line in raw.splitlines() if line.strip()), "")
     if not title:
-        prefix = "chore" if "chore" in convention.commit.prefixes else convention.commit.prefixes[0]
-        title = fallback_title(prefix, files, convention.commit.subject_max_length)
-    return trim_line(title, convention.commit.subject_max_length)
+        prefix = _default_commit_prefix(config)
+        title = fallback_title(prefix, files, commit["subject_max_length"])
+    title = trim_line(title, commit["subject_max_length"])
+    if _commit_title_matches_config(title, config):
+        return title
+    prefix = _default_commit_prefix(config)
+    scope = "(general)" if commit["scope_required"] else ""
+    clean_title = re.sub(r"^[a-z]+(\([^)]+\))?:\s+", "", title, flags=re.IGNORECASE)
+    return trim_line(f"{prefix}{scope}: {clean_title}", commit["subject_max_length"])
 
 
 def normalize_pr(
     raw: str,
     files: list[str],
-    convention: TeamConvention = DEFAULT_CONVENTION,
+    config: AIGitgenConfig,
 ) -> tuple[str, str]:
-    sections = convention.pr.sections
+    pr = config["pr"]
+    sections = pr["sections"]
     lines = [line.rstrip() for line in raw.splitlines()]
     title = ""
     for line in lines:
@@ -156,8 +176,8 @@ def normalize_pr(
         title = _strip_label(stripped)
         break
     if not title:
-        title = fallback_title("chore", files, 80)
-    title = trim_line(title, 80)
+        title = fallback_title("chore", files, pr["title_max_length"])
+    title = trim_line(title, pr["title_max_length"])
 
     section_bullets: dict[str, list[str]] = {name: [] for name in sections}
     current = ""
@@ -187,48 +207,44 @@ def normalize_pr(
         body_parts.append(f"## {section}")
         body_parts.extend(section_bullets[section])
         body_parts.append("")
-    if convention.pr.issue_reference and not re.search(r"\b(Closes|Fixes)\s+#(\d+|<issue_number>)", raw):
-        body_parts.append(convention.pr.issue_reference)
-        body_parts.append("")
-    if convention.pr.checklist:
+    if pr["checklist"]:
         body_parts.append("## Checklist")
-        body_parts.extend(f"- [ ] {item}" for item in convention.pr.checklist)
+        body_parts.extend(f"- [ ] {item}" for item in pr["checklist"])
         body_parts.append("")
     return title, "\n".join(body_parts).strip()
 
 
 def validate_commit(
     text: str,
-    convention: TeamConvention = DEFAULT_CONVENTION,
+    config: AIGitgenConfig,
 ) -> tuple[bool, list[str]]:
+    commit = config["commit"]
     lines = [line.strip() for line in text.splitlines() if line.strip()]
     first = lines[0] if lines else ""
     errors: list[str] = []
     if not first:
         errors.append("커밋 제목이 없습니다.")
-    if len(first) > convention.commit.subject_max_length:
-        errors.append(f"커밋 제목이 {convention.commit.subject_max_length}자를 초과합니다.")
+    if len(first) > commit["subject_max_length"]:
+        errors.append(f"커밋 제목이 {commit['subject_max_length']}자를 초과합니다.")
     if len(lines) > 1:
         errors.append("커밋 메시지는 제목 한 줄만 허용됩니다.")
-    if first:
-        prefix_pattern = "|".join(re.escape(prefix) for prefix in convention.commit.prefixes)
-        scope_part = r"\([^)]+\)" if convention.commit.scope_required else r"(\([^)]+\))?"
-        if not re.match(rf"^({prefix_pattern}){scope_part}: .+", first):
-            errors.append("커밋 제목이 팀 Conventional Commit 규칙과 일치하지 않습니다.")
+    if first and not _commit_title_matches_config(first, config):
+        errors.append("커밋 제목이 팀 Conventional Commit 규칙과 일치하지 않습니다.")
     return not errors, errors
 
 
 def validate_pr(
     title: str,
     body: str,
-    convention: TeamConvention = DEFAULT_CONVENTION,
+    config: AIGitgenConfig,
 ) -> tuple[bool, list[str]]:
+    pr = config["pr"]
     errors: list[str] = []
     if not title.strip():
         errors.append("PR 제목이 없습니다.")
-    if len(title.strip()) > 80:
-        errors.append("PR 제목이 80자를 초과합니다.")
-    for section in convention.pr.sections:
+    if len(title.strip()) > pr["title_max_length"]:
+        errors.append(f"PR 제목이 {pr['title_max_length']}자를 초과합니다.")
+    for section in pr["sections"]:
         pattern = rf"(?ms)^##\s+{re.escape(section)}\s*$.*?(?=^##\s+|\Z)"
         match = re.search(pattern, body)
         if not match:
@@ -236,9 +252,7 @@ def validate_pr(
             continue
         if not re.search(r"(?m)^-\s+\S+", match.group(0)):
             errors.append(f"{section} 섹션에 불릿이 없습니다.")
-    if convention.pr.issue_reference and not re.search(r"\b(Closes|Fixes)\s+#(\d+|<issue_number>)", body):
-        errors.append("PR 본문에 Closes 또는 Fixes 이슈 참조가 없습니다.")
-    for item in convention.pr.checklist:
+    for item in pr["checklist"]:
         if not re.search(rf"(?m)^-\s+\[[ xX]\]\s+{re.escape(item)}\s*$", body):
             errors.append(f"Checklist 항목이 없습니다: {item}")
     return not errors, errors
