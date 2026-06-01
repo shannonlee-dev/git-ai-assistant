@@ -7,6 +7,16 @@ from textwrap import dedent
 
 
 PR_SECTIONS = ("Why", "What", "How to Test")
+PR_SECTION_ALIASES = {
+    "why": "Why",
+    "what": "What",
+    "how": "How to Test",
+    "how to test": "How to Test",
+    "test": "How to Test",
+    "tests": "How to Test",
+    "testing": "How to Test",
+    "validation": "How to Test",
+}
 
 
 def build_prompt(mode: str, status: str, diff: str, files: list[str], max_files: int) -> list[dict[str, str]]:
@@ -64,6 +74,14 @@ def _strip_label(line: str) -> str:
     ).strip()
 
 
+def _normalize_pr_heading(line: str) -> str:
+    match = re.match(r"^##\s+(.+?)\s*$", line.strip())
+    if not match:
+        return ""
+    heading = re.sub(r"\s+", " ", match.group(1).strip().rstrip(":：")).lower()
+    return PR_SECTION_ALIASES.get(heading, "")
+
+
 def fallback_title(prefix: str, files: list[str]) -> str:
     target = files[0] if files else "project"
     return trim_line(f"{prefix}: update {target}", 72 if prefix != "pr" else 80)
@@ -92,10 +110,9 @@ def normalize_pr(raw: str, files: list[str]) -> tuple[str, str]:
     section_bullets: dict[str, list[str]] = {name: [] for name in PR_SECTIONS}
     current = ""
     for line in lines:
-        heading = re.match(r"^##\s+(Why|What|How to Test)\s*$", line.strip(), re.IGNORECASE)
+        heading = _normalize_pr_heading(line)
         if heading:
-            current = heading.group(1)
-            current = next(name for name in PR_SECTIONS if name.lower() == current.lower())
+            current = heading
             continue
         if current and line.strip().startswith("- "):
             section_bullets[current].append(line.strip())
