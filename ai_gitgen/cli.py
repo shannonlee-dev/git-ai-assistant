@@ -6,6 +6,7 @@ import argparse
 import os
 from pathlib import Path
 import sys
+from typing import Any
 
 from .ai_client import AIClient, APIError
 from .constants import (
@@ -35,6 +36,7 @@ from .constants import (
 )
 from .git_tools import GitError, collect_changes
 from .output import (
+    AIGitgenConfig,
     build_prompt,
     format_commit_output,
     format_pr_output,
@@ -117,6 +119,11 @@ def run_generation(args: argparse.Namespace) -> int:
         print("[INFO] 변경 사항이 없습니다. 커밋 메시지를 생성하지 않고 종료합니다.")
         return EXIT_SUCCESS
 
+    if not changes.has_changes:
+        target = "커밋 메시지" if args.command == "commit" else "PR 초안"
+        print(f"[INFO] 변경 사항이 없습니다. {target}을 생성하지 않고 종료합니다.")
+        return 0
+
     safety = apply_safe_mode(changes.diff, args.safe_mode, args.max_files, args.max_diff_lines)
     print(f"[INFO] Git diff 수집 완료: {changes.diff_line_count}줄")
     if args.safe_mode:
@@ -140,7 +147,7 @@ def run_generation(args: argparse.Namespace) -> int:
         print('[ERROR] AI_API_KEY 환경변수가 설정되지 않았습니다. 예) export AI_API_KEY="YOUR_KEY"', file=sys.stderr)
         return EXIT_USAGE_ERROR
 
-    messages = build_prompt(args.command, changes.status, safety.text, changes.changed_files, args.max_files)
+    messages = build_prompt(args.command, changes.status, safety.text, changes.changed_files, args.max_files, config)
     client = AIClient(api_key=api_key, base_url=args.api_base_url)
     print("[INFO] AI API 요청 중...")
     try:
@@ -180,7 +187,12 @@ def run_generation(args: argparse.Namespace) -> int:
     return EXIT_USAGE_ERROR
 
 
-def validate_from_stdin() -> int:
+def validate_from_stdin(config_path: str = DEFAULT_CONFIG_FILE) -> int:
+    try:
+        config = load_ai_gitgen_config(Path.cwd(), config_path)
+    except ConfigError as exc:
+        print_config_error(exc)
+        return 2
     text = sys.stdin.read()
     if PR_BODY_MARKER in text:
         title = ""
@@ -196,7 +208,7 @@ def validate_from_stdin() -> int:
             body = text.split(PR_BODY_MARKER, MARKER_SPLIT_MAX)[PR_TITLE_CONTENT_LINE_INDEX]
         ok, errors = validate_pr(title, body)
     else:
-        ok, errors = validate_commit(text)
+        ok, errors = validate_commit(_extract_commit_message(text), config)
     if ok:
         print("[PASS] 출력 형식 검증 통과")
         return EXIT_SUCCESS

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from textwrap import dedent
+from typing import Any
 
 from .constants import (
     BULLET_PREFIX,
@@ -45,6 +46,8 @@ from .constants import (
     TITLE_ELLIPSIS_WIDTH,
     WHITESPACE_PATTERN,
 )
+
+AIGitgenConfig = dict[str, Any]
 
 
 def build_prompt(mode: str, status: str, diff: str, files: list[str], max_files: int) -> list[dict[str, str]]:
@@ -163,14 +166,37 @@ def fallback_title(prefix: str, files: list[str], limit: int) -> str:
     return trim_line(f"{prefix}: update {target}", limit)
 
 
-def normalize_commit(raw: str, files: list[str]) -> str:
+def _commit_title_matches_config(title: str, config: AIGitgenConfig) -> bool:
+    commit = config["commit"]
+    prefix_pattern = "|".join(re.escape(prefix) for prefix in commit["prefixes"])
+    scope_part = r"\([^)]+\)" if commit["scope_required"] else r"(\([^)]+\))?"
+    return bool(re.match(rf"^({prefix_pattern}){scope_part}: .+", title))
+
+
+def _default_commit_prefix(config: AIGitgenConfig) -> str:
+    prefixes = config["commit"]["prefixes"]
+    return "chore" if "chore" in prefixes else prefixes[0]
+
+
+def normalize_commit(
+    raw: str,
+    files: list[str],
+    config: AIGitgenConfig,
+) -> str:
+    commit = config["commit"]
     title = next((_strip_label(line) for line in raw.splitlines() if line.strip()), "")
     if not title:
         title = fallback_title(FALLBACK_COMMIT_PREFIX, files, COMMIT_TITLE_LIMIT)
     return trim_line(title, COMMIT_TITLE_LIMIT)
 
 
-def normalize_pr(raw: str, files: list[str]) -> tuple[str, str]:
+def normalize_pr(
+    raw: str,
+    files: list[str],
+    config: AIGitgenConfig,
+) -> tuple[str, str]:
+    pr = config["pr"]
+    sections = pr["sections"]
     lines = [line.rstrip() for line in raw.splitlines()]
     title = ""
     for line in lines:
@@ -183,10 +209,10 @@ def normalize_pr(raw: str, files: list[str]) -> tuple[str, str]:
         title = fallback_title(FALLBACK_PR_PREFIX, files, PR_TITLE_LIMIT)
     title = trim_line(title, PR_TITLE_LIMIT)
 
-    section_bullets: dict[str, list[str]] = {name: [] for name in PR_SECTIONS}
+    section_bullets: dict[str, list[str]] = {name: [] for name in sections}
     current = ""
     for line in lines:
-        heading = _normalize_pr_heading(line)
+        heading = _normalize_pr_heading(line, sections)
         if heading:
             current = heading
             continue
@@ -210,10 +236,18 @@ def normalize_pr(raw: str, files: list[str]) -> tuple[str, str]:
         body_parts.append(f"{MARKDOWN_HEADING_PREFIX} {section}")
         body_parts.extend(section_bullets[section])
         body_parts.append("")
+    if pr["checklist"]:
+        body_parts.append("## Checklist")
+        body_parts.extend(f"- [ ] {item}" for item in pr["checklist"])
+        body_parts.append("")
     return title, "\n".join(body_parts).strip()
 
 
-def validate_commit(text: str) -> tuple[bool, list[str]]:
+def validate_commit(
+    text: str,
+    config: AIGitgenConfig,
+) -> tuple[bool, list[str]]:
+    commit = config["commit"]
     lines = [line.strip() for line in text.splitlines() if line.strip()]
     first = lines[FIRST_LINE_INDEX] if lines else ""
     errors: list[str] = []
@@ -223,10 +257,17 @@ def validate_commit(text: str) -> tuple[bool, list[str]]:
         errors.append(f"커밋 제목이 {COMMIT_TITLE_LIMIT}자를 초과합니다.")
     if len(lines) > MAX_COMMIT_MESSAGE_LINES:
         errors.append("커밋 메시지는 제목 한 줄만 허용됩니다.")
+    if first and not _commit_title_matches_config(first, config):
+        errors.append("커밋 제목이 팀 Conventional Commit 규칙과 일치하지 않습니다.")
     return not errors, errors
 
 
-def validate_pr(title: str, body: str) -> tuple[bool, list[str]]:
+def validate_pr(
+    title: str,
+    body: str,
+    config: AIGitgenConfig,
+) -> tuple[bool, list[str]]:
+    pr = config["pr"]
     errors: list[str] = []
     if not title.strip():
         errors.append("PR 제목이 없습니다.")
@@ -240,6 +281,9 @@ def validate_pr(title: str, body: str) -> tuple[bool, list[str]]:
             continue
         if not re.search(PR_BULLET_PATTERN, match.group(FULL_MATCH_GROUP)):
             errors.append(f"{section} 섹션에 불릿이 없습니다.")
+    for item in pr["checklist"]:
+        if not re.search(rf"(?m)^-\s+\[[ xX]\]\s+{re.escape(item)}\s*$", body):
+            errors.append(f"Checklist 항목이 없습니다: {item}")
     return not errors, errors
 
 
