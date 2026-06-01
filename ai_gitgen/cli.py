@@ -21,8 +21,8 @@ from .output import (
 from .safety import apply_safe_mode
 
 
-DEFAULT_MODEL = "gpt-4o-mini"
-DEFAULT_API_BASE_URL = "https://api.openai.com/v1/chat/completions"
+DEFAULT_MODEL = "gemini-3.5-flash"
+DEFAULT_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
 
 
 def build_parser() -> argparse.ArgumentParser:
