@@ -121,3 +121,80 @@ python main.py validate-output < sample-output.txt
 - 커밋 메시지는 제목 한 줄만 허용
 - PR 제목은 최대 80자
 - PR 본문은 `Why`, `What`, `How to Test` 섹션과 각 섹션 1개 이상 불릿 포함
+
+## 보너스 증빙: 실제 PR 적용
+
+실제 적용 PR: [codyssey-b2-2-team-mission/git-flow-utility-lab#30](https://github.com/codyssey-b2-2-team-mission/git-flow-utility-lab/pull/30)
+
+아래 초안은 [codyssey-b2-2-team-mission/git-flow-utility-lab.git](https://github.com/codyssey-b2-2-team-mission/git-flow-utility-lab.git) 저장소의 `feature/sangheonlee-member-initials` 브랜치 변경분을 대상으로 이 프로그램을 실행해 생성한 결과입니다. 실제 출력 원문은 [logs/bonus-commit-output.txt](logs/bonus-commit-output.txt), [logs/bonus-pr-output.txt](logs/bonus-pr-output.txt)에 저장했습니다.
+
+추천 커밋 메시지:
+
+```text
+Add member_initials function to team_utils
+```
+
+추천 PR 제목:
+
+```text
+Add member_initials function to extract initials from normalized names
+```
+
+추천 PR 본문:
+
+```text
+## Why
+- Capture the reason for the current Git changes.
+
+## What
+- Update README.md
+- Update src/team_utils.py
+
+## How to Test
+- Run the project checks for this change.
+```
+
+## 최종 커밋, PR
+
+
+최종 커밋 메시지:
+
+```text
+feat: add member initials helper
+```
+
+최종 PR 제목:
+
+```text
+Add member initials helper and README examples
+```
+
+최종 PR 본문:
+
+```text
+## What
+- Add `member_initials()` to return initials from a normalized member name.
+- Print the new helper result from `src/team_utils.py`.
+- Update the README improvement history, expected output, and check examples.
+
+## Why
+- Member-name utilities now cover both slug generation and initials extraction.
+- Reusing `normalize_member_name()` keeps whitespace cleanup and capitalization consistent.
+- README examples should match the behavior users see when they run the script.
+
+## How to Test
+- Run `python3 src/team_utils.py`.
+- Confirm the output includes `member_initials: SL`.
+- Check that `member_initials("  sangheon   lee ") == "SL"` matches the README example.
+```
+
+변경점과 이유:
+
+- 초안 커밋 메시지는 함수명을 말했지만 Conventional Commit 형식이 아니어서 `feat:` prefix를 붙여 기능 추가임을 분명히 했습니다.
+- `member_initials`는 코드 식별자라 커밋 제목에서는 `member initials helper`처럼 사람이 읽기 쉬운 표현으로 다듬었습니다.
+- PR 제목은 함수 추가만 말하지 않고 README 예시 갱신까지 포함해 실제 변경 범위를 반영했습니다.
+- PR 본문 `What`에는 코드 변경, 실행 출력 변경, README 문서 변경을 각각 분리해 리뷰어가 빠르게 확인할 수 있게 했습니다.
+- PR 본문 `Why`에는 새 helper가 기존 이름 유틸리티 흐름을 확장한다는 목적을 추가했습니다.
+- `normalize_member_name()` 재사용을 명시해 공백 정리와 대소문자 처리 일관성이 유지된다는 점을 설명했습니다.
+- 초안의 `Run the project checks`는 너무 추상적이라 실제 실행 명령인 `python3 src/team_utils.py`로 바꿨습니다.
+- `member_initials: SL`과 README 확인 예시를 검증 항목에 넣어 이번 변경의 성공 기준을 구체화했습니다.
