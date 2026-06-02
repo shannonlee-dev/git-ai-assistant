@@ -211,9 +211,6 @@ def load_ai_gitgen_config(root: Path, config_path: str = DEFAULT_CONFIG_FILE) ->
             "scope_required": _as_bool(_config_value(data, "commit.scope_required")),
             "subject_max_length": _as_int(_config_value(data, "commit.subject_max_length")),
         },
-        "branch": {
-            "patterns": _as_tuple(_config_value(data, "branch.patterns")),
-        },
         "pr": {
             "sections": _as_tuple(_config_value(data, "pr.sections")),
             "tone": str(_config_value(data, "pr.tone")),
@@ -243,7 +240,6 @@ def resolve_config_path(root: Path, config_path: str = DEFAULT_CONFIG_FILE) -> P
 
 def validate_config(config: AIGitgenConfig) -> None:
     commit = config["commit"]
-    branch = config["branch"]
     pr = config["pr"]
     if not commit["prefixes"]:
         raise ConfigError("commit.prefixes must include at least one prefix.")
@@ -252,8 +248,6 @@ def validate_config(config: AIGitgenConfig) -> None:
         raise ConfigError("commit.prefixes must be lowercase words without spaces.")
     if commit["subject_max_length"] < 10:
         raise ConfigError("commit.subject_max_length must be at least 10.")
-    if not branch["patterns"]:
-        raise ConfigError("branch.patterns must include at least one branch pattern.")
     if not pr["sections"]:
         raise ConfigError("pr.sections must include at least one section.")
     if pr["title_max_length"] < 10:
@@ -266,7 +260,6 @@ def validate_config(config: AIGitgenConfig) -> None:
 
 def describe_config(config: AIGitgenConfig) -> str:
     commit = config["commit"]
-    branch = config["branch"]
     pr = config["pr"]
     scope_rule = "required" if commit["scope_required"] else "optional"
     lines = [
@@ -274,7 +267,6 @@ def describe_config(config: AIGitgenConfig) -> str:
         f"- commit prefixes: {', '.join(commit['prefixes'])}",
         f"- commit scope: {scope_rule}",
         f"- commit title max length: {commit['subject_max_length']}",
-        f"- branch patterns: {', '.join(branch['patterns'])}",
         f"- PR title max length: {pr['title_max_length']}",
         f"- PR sections: {', '.join(pr['sections'])}",
         f"- PR tone: {pr['tone']}",

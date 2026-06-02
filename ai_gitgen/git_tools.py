@@ -73,17 +73,11 @@ def collect_changes(cwd: Path) -> GitChangeSet:
     root = ensure_project_root(cwd) #실패하면 enure_project_root에서 GitError 발생
     status = _run_git(["status", "--short"], root).rstrip()
     branch = _run_git(["branch", "--show-current"], root).strip() or "detached"
-    unstaged = _run_git(["diff", "--no-ext-diff", "--"], root).rstrip()
     staged = _run_git(["diff", "--cached", "--no-ext-diff", "--"], root).rstrip()
-    diff_parts: list[str] = []
-    if unstaged:
-        diff_parts.append("### Unstaged diff\n" + unstaged)
-    if staged:
-        diff_parts.append("### Staged diff\n" + staged)
     return GitChangeSet(
         root=root,
         branch=branch,
         status=status,
-        diff="\n\n".join(diff_parts),
+        diff=staged,
         changed_files=parse_changed_files(status),
     )

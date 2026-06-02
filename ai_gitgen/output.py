@@ -45,10 +45,8 @@ def build_prompt(
             """
         ).strip()
     elif mode == "pr":
-        branch = config["branch"]
         pr = config["pr"]
         sections = ", ".join(f"## {section}" for section in pr["sections"])
-        branch_patterns = ", ".join(branch["patterns"])
         checklist = ""
         if pr["checklist"]:
             checklist = "Include a final ## Checklist section with these unchecked items: " + ", ".join(
@@ -61,7 +59,6 @@ def build_prompt(
             {sections}. Each required section must include at least one bullet.
             The PR title must be {pr["title_max_length"]} characters or fewer.
             Match this team tone: {pr["tone"]}.
-            Team branch naming convention: {branch_patterns}.
             {checklist}
             """
         ).strip()
