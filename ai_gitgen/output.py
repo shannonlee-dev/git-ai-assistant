@@ -58,22 +58,28 @@ def build_prompt(
         commit = config["commit"]
         scope_rule = "A scope is required." if commit["scope_required"] else "Do not add a scope unless necessary."
         scope_schema = "(<scope>)" if commit["scope_required"] else "[(<scope>)]"
-        schema = dedent(
-            f"""
-            ```md
-            <one-of: {", ".join(commit["prefixes"])}>{scope_schema}: <subject>
-            ```
-            """
-        ).strip()
+        output_contract = f'<one-of: {", ".join(commit["prefixes"])}>{scope_schema}: <subject>'
         task = dedent(
             f"""
-            Generate a Git commit message from the supplied git status and git diff.
-            Return only one concise title line, with no body or bullet list.
-            The title must be {commit["subject_max_length"]} characters or fewer.
-            Use Conventional Commits with one of these prefixes: {", ".join(commit["prefixes"])}.
-            {scope_rule}
-            Use this exact output schema:
-            {schema}
+            ## Role
+            You generate Git commit metadata from staged changes.
+
+            ## Source Of Truth
+            Use only the supplied changed files, git status, git diff, and team convention.
+
+            ## Output Contract
+            Your entire response is the commit title artifact.
+            It has exactly one non-empty line and this shape:
+            {output_contract}
+
+            ## Team Convention
+            - prefixes: {", ".join(commit["prefixes"])}
+            - scope rule: {scope_rule}
+            - title limit: {commit["subject_max_length"]} characters
+
+            ## Acceptance Gate
+            Before responding, verify the artifact is one line, matches the output contract,
+            fits the title limit, and summarizes the most important staged change.
             """
         ).strip()
     elif mode == COMMAND_PR:
@@ -91,42 +97,53 @@ def build_prompt(
         checklist_schema = ""
         if pr["checklist"]:
             checklist_schema = "\n\n## Checklist\n" + "\n".join(f"- [ ] {item}" for item in pr["checklist"])
-        schema = dedent(
-            f"""
-            ```md
-            <pr-title>
-
-            {schema_sections}{checklist_schema}
-            ```
-            """
-        ).strip()
+        output_contract = f"<pr-title>\n\n{schema_sections}{checklist_schema}"
         task = dedent(
             f"""
-            Generate a Pull Request draft from the supplied git status and git diff.
-            Return a one-line title, then a body with these Markdown sections:
-            {sections}. Each required section must include at least one bullet.
-            The PR title must be {pr["title_max_length"]} characters or fewer.
-            Match this team tone: {pr["tone"]}.
+            ## Role
+            You generate Pull Request metadata from staged changes.
+
+            ## Source Of Truth
+            Use only the supplied changed files, git status, git diff, and team convention.
+
+            ## Output Contract
+            Your entire response is the PR artifact.
+            It has a one-line title followed by the required Markdown body:
+            {output_contract}
+
+            ## Team Convention
+            - required sections: {sections}
+            - title limit: {pr["title_max_length"]} characters
+            - tone: {pr["tone"]}
             {checklist}
-            Use this exact output schema:
-            {schema}
+
+            ## Acceptance Gate
+            Before responding, verify the title fits the limit, every required section exists,
+            every required section has at least one bullet, and the artifact summarizes the
+            most important staged changes.
             """
         ).strip()
 
     user = dedent(
         f"""
-        Changed files:
+        ## Changed Files
         {file_list}
 
-        git status --short:
+        ## Git Status Short
         {status}
 
-        git diff:
+        ## Git Diff
         {diff}
         """
     ).strip()
     return [
-        {"role": PROMPT_SYSTEM_ROLE, "content": "You help developers write accurate Git metadata."},
+        {
+            "role": PROMPT_SYSTEM_ROLE,
+            "content": (
+                "You produce only the requested Git metadata artifact. "
+                "Follow the output contract exactly and use the acceptance gate before responding."
+            ),
+        },
         {"role": PROMPT_USER_ROLE, "content": f"{task}\n\n{user}"},
     ]
 
@@ -140,9 +157,19 @@ def _strip_label(line: str) -> str:
     return re.sub(
         STRIP_LABEL_PATTERN,
         "",
-        line.strip(),
+        re.sub(r"^[-*]\s+", "", line.strip()),
         flags=re.IGNORECASE,
     ).strip()
+
+
+def _content_lines(raw: str) -> list[str]:
+    lines: list[str] = []
+    for line in raw.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("```"):
+            continue
+        lines.append(stripped)
+    return lines
 
 
 def _section_key(text: str) -> str:
@@ -198,7 +225,11 @@ def normalize_commit(
     config: AIGitgenConfig,
 ) -> str:
     commit = config["commit"]
-    title = next((_strip_label(line) for line in raw.splitlines() if line.strip()), "")
+    candidates = [_strip_label(line) for line in _content_lines(raw)]
+    candidates = [line for line in candidates if line and not line.startswith(MARKDOWN_HEADING_PREFIX)]
+    title = next((line for line in candidates if _commit_title_matches_config(line, config)), "")
+    if not title:
+        title = candidates[FIRST_LINE_INDEX] if candidates else ""
     if not title:
         prefix = _default_commit_prefix(config)
         title = fallback_title(prefix, files, commit["subject_max_length"])
@@ -218,7 +249,7 @@ def normalize_pr(
 ) -> tuple[str, str]:
     pr = config["pr"]
     sections = pr["sections"]
-    lines = [line.rstrip() for line in raw.splitlines()]
+    lines = _content_lines(raw)
     title = ""
     for line in lines:
         stripped = line.strip()

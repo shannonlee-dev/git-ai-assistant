@@ -31,16 +31,22 @@ export AI_API_KEY="<YOUR_API_KEY>"
 export AI_API_BASE_URL="https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
 ```
 
+모델은 `--model`로 직접 지정하거나 `AI_MODEL` 환경변수로 기본값을 바꿀 수 있습니다.
+
+```sh
+export AI_MODEL="gpt-4.1-mini"
+```
+
 ## Usage
 
 이 도구는 Git 프로젝트 루트에서 실행해야 합니다.
 
 ```sh
-python main.py commit --model gemini-3.5-flash --temperature 0.2 --max-tokens 700 --safe-mode
+python main.py commit --temperature 0.2 --max-tokens 700 --safe-mode
 ```
 
 ```sh
-python main.py pr --model gemini-3.5-flash --temperature 0.2 --max-tokens 900 --safe-mode
+python main.py pr --temperature 0.2 --max-tokens 900 --safe-mode
 ```
 
 API 호출 없이 Git 수집과 safe-mode 적용 상태만 확인하려면 dry-run을 사용합니다.
