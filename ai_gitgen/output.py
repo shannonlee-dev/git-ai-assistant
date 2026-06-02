@@ -23,19 +23,12 @@ from .constants import (
     FULL_MATCH_GROUP,
     HEADING_SUFFIX_CHARS,
     MARKDOWN_HEADING_PREFIX,
-    MAX_FALLBACK_WHAT_FILES,
     MAX_COMMIT_MESSAGE_LINES,
-    PR_BULLET_PATTERN,
+    MAX_FALLBACK_WHAT_FILES,
     PR_BODY_MARKER,
-    PR_HEADING_TEXT_GROUP,
+    PR_BULLET_PATTERN,
     PR_HEADING_PATTERN,
-    PR_SECTION_ALIASES,
-    PR_SECTION_HOW_TO_TEST,
-    PR_SECTION_PATTERN_TEMPLATE,
-    PR_SECTION_WHAT,
-    PR_SECTION_WHY,
-    PR_SECTIONS,
-    PR_TITLE_LIMIT,
+    PR_HEADING_TEXT_GROUP,
     PR_TITLE_MARKER,
     PROMPT_MODE_COMMIT,
     PROMPT_MODE_PR,
@@ -149,19 +142,37 @@ def _strip_label(line: str) -> str:
     ).strip()
 
 
-def _normalize_pr_heading(line: str) -> str:
+def _section_key(text: str) -> str:
+    return re.sub(WHITESPACE_PATTERN, " ", text.strip().rstrip(HEADING_SUFFIX_CHARS)).lower()
+
+
+def _section_kind(section: str) -> str:
+    key = _section_key(section)
+    if "test" in key or "validat" in key:
+        return "test"
+    if key in {"what", "why"}:
+        return key
+    if key in {"how", "how to test"}:
+        return "test"
+    return ""
+
+
+def _normalize_pr_heading(line: str, sections: tuple[str, ...]) -> str:
     match = re.match(PR_HEADING_PATTERN, line.strip())
     if not match:
         return ""
-    heading = re.sub(
-        WHITESPACE_PATTERN,
-        " ",
-        match.group(PR_HEADING_TEXT_GROUP).strip().rstrip(HEADING_SUFFIX_CHARS),
-    ).lower()
-    return PR_SECTION_ALIASES.get(heading, "")
+    heading = match.group(PR_HEADING_TEXT_GROUP)
+    heading_key = _section_key(heading)
+    exact = next((name for name in sections if _section_key(name) == heading_key), "")
+    if exact:
+        return exact
+    heading_kind = _section_kind(heading)
+    if not heading_kind:
+        return ""
+    return next((name for name in sections if _section_kind(name) == heading_kind), "")
 
 
-def fallback_title(prefix: str, files: list[str], limit: int) -> str:
+def fallback_title(prefix: str, files: list[str], limit: int = 72) -> str:
     target = files[FIRST_LINE_INDEX] if files else DEFAULT_FALLBACK_TARGET
     return trim_line(f"{prefix}: update {target}", limit)
 
@@ -175,7 +186,7 @@ def _commit_title_matches_config(title: str, config: AIGitgenConfig) -> bool:
 
 def _default_commit_prefix(config: AIGitgenConfig) -> str:
     prefixes = config["commit"]["prefixes"]
-    return "chore" if "chore" in prefixes else prefixes[0]
+    return FALLBACK_COMMIT_PREFIX if FALLBACK_COMMIT_PREFIX in prefixes else prefixes[FIRST_LINE_INDEX]
 
 
 def normalize_commit(
@@ -237,8 +248,8 @@ def normalize_pr(
         body_parts.extend(section_bullets[section])
         body_parts.append("")
     if pr["checklist"]:
-        body_parts.append("## Checklist")
-        body_parts.extend(f"- [ ] {item}" for item in pr["checklist"])
+        body_parts.append(f"{MARKDOWN_HEADING_PREFIX} Checklist")
+        body_parts.extend(f"{BULLET_PREFIX}[ ] {item}" for item in pr["checklist"])
         body_parts.append("")
     return title, "\n".join(body_parts).strip()
 

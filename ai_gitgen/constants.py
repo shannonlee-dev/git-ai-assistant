@@ -9,6 +9,7 @@ MIN_MAX_TOKENS = 50
 DEFAULT_MAX_FILES = 10
 DEFAULT_MAX_DIFF_LINES = 200
 DEFAULT_API_TIMEOUT = 30.0
+DEFAULT_SAFE_MODE = True
 
 AI_API_KEY_ENV = "AI_API_KEY"
 AI_API_BASE_URL_ENV = "AI_API_BASE_URL"
@@ -109,8 +110,23 @@ HTTP_ERROR_ENCODING = "replace"
 HTTP_METHOD_POST = "POST"
 HTTP_AUTHORIZATION_HEADER = "Authorization"
 HTTP_CONTENT_TYPE_HEADER = "Content-Type"
+HTTP_RETRY_AFTER_HEADER = "Retry-After"
 HTTP_JSON_CONTENT_TYPE = "application/json"
 HTTP_BEARER_PREFIX = "Bearer"
+
+HTTP_STATUS_HINTS = {
+    400: "요청 형식이 잘못되었습니다. 모델명, temperature, max_tokens 같은 요청 값을 확인하세요.",
+    401: "인증에 실패했습니다. AI_API_KEY 값이 올바른지 확인하세요.",
+    403: "API 키 권한, 프로젝트 권한, 결제 설정 또는 모델 접근 권한을 확인하세요.",
+    404: "API URL 또는 모델명을 찾을 수 없습니다. --api-base-url과 --model 값을 확인하세요.",
+    408: "요청 시간이 초과되었습니다. 잠시 후 다시 시도하세요.",
+    413: "요청이 너무 큽니다. --max-files 또는 --max-diff-lines 값을 줄여 diff 크기를 낮추세요.",
+    429: "요청 제한 또는 할당량을 초과했습니다. 잠시 후 다시 시도하거나 API 쿼터를 확인하세요.",
+    500: "AI 제공자 서버 오류입니다. 잠시 후 다시 시도하세요.",
+    502: "AI 제공자 게이트웨이 오류입니다. 잠시 후 다시 시도하세요.",
+    503: "AI 서비스가 일시적으로 사용할 수 없습니다. 잠시 후 다시 시도하세요.",
+    504: "AI 제공자 응답 시간이 초과되었습니다. 잠시 후 다시 시도하세요.",
+}
 
 API_RESPONSE_CHOICES_KEY = "choices"
 API_RESPONSE_MESSAGE_KEY = "message"
@@ -121,6 +137,10 @@ API_PAYLOAD_TEMPERATURE_KEY = "temperature"
 API_PAYLOAD_MAX_TOKENS_KEY = "max_tokens"
 API_ERROR_KEY = "error"
 API_ERROR_MESSAGE_KEY = "message"
+API_ERROR_DETAIL_KEY = "detail"
+API_ERROR_DESCRIPTION_KEY = "error_description"
+API_ERROR_CODE_KEY = "code"
+API_ERROR_STATUS_KEY = "status"
 EMPTY_ERROR_RESPONSE = "empty error response"
 
 DRY_RUN_STATUS_PREVIEW_LINES = 20

@@ -8,21 +8,20 @@ import re
 from .constants import (
     ADDITIONAL_SECRET_PATTERNS_START_INDEX,
     AWS_ACCESS_KEY_PATTERN,
-    COUNT_INCREMENT,
     EMAIL_PATTERN,
     GIT_DIFF_FILE_PREFIX,
     INITIAL_COUNT,
     MASKED_TOKEN,
     OPENAI_SECRET_PATTERN,
-    SECRET_ASSIGNMENT_PATTERN_INDEX,
     SECRET_ASSIGNMENT_PATTERN,
+    SECRET_ASSIGNMENT_PATTERN_INDEX,
     SECRET_NAME_GROUP,
     SECRET_SEPARATOR_GROUP,
 )
 
 
 SECRET_PATTERNS = [
-    re.compile(SECRET_ASSIGNMENT_PATTERN), # (?!) 대소문자 구분 없이 
+    re.compile(SECRET_ASSIGNMENT_PATTERN),
     re.compile(OPENAI_SECRET_PATTERN),
     re.compile(EMAIL_PATTERN),
     re.compile(AWS_ACCESS_KEY_PATTERN),
@@ -43,7 +42,7 @@ def mask_sensitive_text(text: str) -> tuple[str, int]:
 
     def replace_secret_assignment(match: re.Match[str]) -> str:
         nonlocal total
-        total += COUNT_INCREMENT
+        total += 1
         return f"{match.group(SECRET_NAME_GROUP)}{match.group(SECRET_SEPARATOR_GROUP)}{MASKED_TOKEN}"
 
     masked = SECRET_PATTERNS[SECRET_ASSIGNMENT_PATTERN_INDEX].sub(replace_secret_assignment, masked)
@@ -63,7 +62,7 @@ def limit_diff(text: str, max_files: int, max_lines: int) -> tuple[str, int, int
 
     for line in lines:
         if line.startswith(GIT_DIFF_FILE_PREFIX):
-            seen_files += COUNT_INCREMENT
+            seen_files += 1
             include_current_file = seen_files <= max_files
             if not include_current_file:
                 omitted_files += COUNT_INCREMENT
