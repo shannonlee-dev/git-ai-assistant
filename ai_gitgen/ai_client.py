@@ -123,13 +123,13 @@ class AIClient:
         if self.base_url.startswith(MOCK_PR_URL_PREFIX):
             return """feat: add PR summary
 
-## Why
-- Improve review context.
-
 ## What
 - Update demo.txt.
 
-## How to Test
+## Why
+- Improve review context.
+
+## How
 - Run the CLI.
 """
         return "feat: add generated summary"

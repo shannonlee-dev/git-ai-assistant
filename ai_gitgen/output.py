@@ -14,7 +14,6 @@ from .constants import (
     COMMAND_COMMIT,
     COMMAND_PR,
     DEFAULT_FALLBACK_TARGET,
-    DEFAULT_HOW_TO_TEST_BULLET,
     DEFAULT_WHAT_BULLET,
     DEFAULT_WHY_BULLET,
     FALLBACK_COMMIT_PREFIX,
@@ -170,30 +169,18 @@ def _section_key(text: str) -> str:
     return re.sub(WHITESPACE_PATTERN, " ", text.strip().rstrip(HEADING_SUFFIX_CHARS)).lower()
 
 
-def _section_kind(section: str) -> str:
-    key = _section_key(section)
-    if "test" in key or "validat" in key:
-        return "test"
-    if key in {"what", "why"}:
-        return key
-    if key in {"how", "how to test"}:
-        return "test"
-    return ""
+def _is_checklist_bullet(line: str) -> bool:
+    return bool(re.match(r"^-\s+\[[ xX]\]\s+", line.strip()))
+
+
+def _heading_text(line: str) -> str:
+    match = re.match(PR_HEADING_PATTERN, line.strip())
+    return match.group(PR_HEADING_TEXT_GROUP) if match else ""
 
 
 def _normalize_pr_heading(line: str, sections: tuple[str, ...]) -> str:
-    match = re.match(PR_HEADING_PATTERN, line.strip())
-    if not match:
-        return ""
-    heading = match.group(PR_HEADING_TEXT_GROUP)
-    heading_key = _section_key(heading)
-    exact = next((name for name in sections if _section_key(name) == heading_key), "")
-    if exact:
-        return exact
-    heading_kind = _section_kind(heading)
-    if not heading_kind:
-        return ""
-    return next((name for name in sections if _section_kind(name) == heading_kind), "")
+    heading_key = _section_key(_heading_text(line))
+    return next((name for name in sections if _section_key(name) == heading_key), "")
 
 
 def fallback_title(prefix: str, files: list[str], limit: int = 72) -> str:
@@ -249,13 +236,27 @@ def normalize_pr(
     title = trim_line(title, PR_TITLE_LIMIT)
 
     section_bullets: dict[str, list[str]] = {name: [] for name in sections}
+    section_positions = {_section_key(section): index for index, section in enumerate(sections)}
+    next_section_index = 0
     current = ""
     for line in lines:
-        heading = _normalize_pr_heading(line, sections)
-        if heading:
-            current = heading
+        heading_text = _heading_text(line)
+        if heading_text:
+            if _section_key(heading_text) == "checklist":
+                current = ""
+                continue
+            heading = _normalize_pr_heading(line, sections)
+            if heading:
+                current = heading
+                next_section_index = max(next_section_index, section_positions[_section_key(heading)] + 1)
+                continue
+            if next_section_index < len(sections):
+                current = sections[next_section_index]
+                next_section_index += 1
+                continue
+            current = ""
             continue
-        if current and line.strip().startswith(BULLET_PREFIX):
+        if current and line.strip().startswith(BULLET_PREFIX) and not _is_checklist_bullet(line):
             section_bullets[current].append(line.strip())
 
     if not section_bullets[PR_SECTION_WHY]:
