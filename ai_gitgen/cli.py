@@ -26,6 +26,7 @@ from .constants import (
     EXIT_API_ERROR,
     EXIT_SUCCESS,
     EXIT_USAGE_ERROR,
+    MIN_MAX_TOKENS,
     PR_BODY_MARKER,
     PR_TITLE_MARKER,
     MARKER_SPLIT_MAX,
@@ -70,7 +71,12 @@ def add_generation_options(parser: argparse.ArgumentParser) -> None:
         default=DEFAULT_TEMPERATURE,
         help=f"AI temperature (default: {DEFAULT_TEMPERATURE})",
     )
-    parser.add_argument("--max-tokens", type=int, default=DEFAULT_MAX_TOKENS, help="Maximum generated tokens")
+    parser.add_argument(
+        "--max-tokens",
+        type=parse_max_tokens,
+        default=DEFAULT_MAX_TOKENS,
+        help=f"Maximum generated tokens (minimum: {MIN_MAX_TOKENS})",
+    )
     parser.add_argument("--api-base-url", default=os.getenv(AI_API_BASE_URL_ENV, DEFAULT_API_BASE_URL))
     parser.add_argument("--dry-run", action="store_true", help="Collect Git data and print prompt stats without API call")
     safety = parser.add_mutually_exclusive_group()
@@ -78,6 +84,16 @@ def add_generation_options(parser: argparse.ArgumentParser) -> None:
     safety.add_argument("--no-safe-mode", dest="safe_mode", action="store_false")
     parser.add_argument("--max-files", type=int, default=DEFAULT_MAX_FILES, help="Safe-mode diff file limit")
     parser.add_argument("--max-diff-lines", type=int, default=DEFAULT_MAX_DIFF_LINES, help="Safe-mode diff line limit")
+
+
+def parse_max_tokens(value: str) -> int:
+    try:
+        max_tokens = int(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("must be an integer") from exc
+    if max_tokens < MIN_MAX_TOKENS:
+        raise argparse.ArgumentTypeError(f"must be at least {MIN_MAX_TOKENS}")
+    return max_tokens
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -53,14 +53,37 @@ def build_prompt(mode: str, status: str, diff: str, files: list[str], max_files:
 
     file_list = "\n".join(f"- {name}" for name in files[:max_files]) or "- unknown"
     if mode == COMMAND_COMMIT:
+        schema = dedent(
+            """
+            ```md
+            <commit-title>
+            ```
+            """
+        ).strip()
         task = dedent(
             f"""
             Generate a Git commit message from the supplied git status and git diff.
             Return only one concise title line, with no body or bullet list.
             The title must be {COMMIT_TITLE_LIMIT} characters or fewer.
             """
-        ).strip()
+        ).strip() + f"\nUse this exact output schema:\n{schema}"
     elif mode == COMMAND_PR:
+        schema = dedent(
+            f"""
+            ```md
+            <pr-title>
+
+            ## {PR_SECTION_WHY}
+            - <why-bullet>
+
+            ## {PR_SECTION_WHAT}
+            - <what-bullet>
+
+            ## {PR_SECTION_HOW_TO_TEST}
+            - <test-bullet>
+            ```
+            """
+        ).strip()
         task = dedent(
             f"""
             Generate a Pull Request draft from the supplied git status and git diff.
@@ -68,7 +91,7 @@ def build_prompt(mode: str, status: str, diff: str, files: list[str], max_files:
             ## {PR_SECTION_WHY}, ## {PR_SECTION_WHAT}, ## {PR_SECTION_HOW_TO_TEST}. Each section must include at least one bullet.
             The PR title must be {PR_TITLE_LIMIT} characters or fewer.
             """
-        ).strip()
+        ).strip() + f"\nUse this exact output schema:\n{schema}"
 
     user = dedent(
         f"""

@@ -87,9 +87,23 @@ def parse_changed_files(status: str) -> list[str]:
     return files
 
 
+def filter_staged_status(status: str) -> str:
+    lines: list[str] = []
+    for line in status.splitlines():
+        if not line or line[0] in {" ", "?"}:
+            continue
+        path = (
+            line[SHORT_STATUS_PATH_OFFSET:].strip()
+            if len(line) > SHORT_STATUS_PATH_OFFSET
+            else line.strip()
+        )
+        lines.append(f"{line[0]}  {path}")
+    return "\n".join(lines)
+
+
 def collect_changes(cwd: Path) -> GitChangeSet:
     root = ensure_project_root(cwd) #실패하면 enure_project_root에서 GitError 발생
-    status = _run_git(list(GIT_STATUS_SHORT_ARGS), root).rstrip()
+    status = filter_staged_status(_run_git(list(GIT_STATUS_SHORT_ARGS), root).rstrip())
     branch = _run_git(list(GIT_BRANCH_CURRENT_ARGS), root).strip() or DETACHED_BRANCH_NAME
     staged = _run_git(list(GIT_STAGED_DIFF_ARGS), root).rstrip()
     return GitChangeSet(
