@@ -12,6 +12,7 @@ from .ai_client import AIClient, APIError
 from .constants import (
     AI_API_BASE_URL_ENV,
     AI_API_KEY_ENV,
+    AI_MODEL_ENV,
     CLI_PROG,
     COMMAND_COMMIT,
     COMMAND_PR,
@@ -74,7 +75,8 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def add_generation_options(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--model", default=DEFAULT_MODEL, help=f"AI model name (default: {DEFAULT_MODEL})")
+    default_model = os.getenv(AI_MODEL_ENV, DEFAULT_MODEL)
+    parser.add_argument("--model", default=default_model, help=f"AI model name (default: {default_model})")
     parser.add_argument(
         "--temperature",
         type=float,

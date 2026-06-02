@@ -49,6 +49,10 @@ def build_prompt(mode: str, status: str, diff: str, files: list[str], max_files:
 
     file_list = "\n".join(f"- {name}" for name in files[:max_files]) or "- unknown"
     if mode == COMMAND_COMMIT:
+        commit = config["commit"]
+        scope_rule = "A scope is required." if commit["scope_required"] else "Do not add a scope unless necessary."
+        scope_schema = "(<scope>)" if commit["scope_required"] else "[(<scope>)]"
+        output_contract = f'<one-of: {", ".join(commit["prefixes"])}>{scope_schema}: <subject>'
         task = dedent(
             f"""
             ## Role
@@ -60,10 +64,12 @@ def build_prompt(mode: str, status: str, diff: str, files: list[str], max_files:
             ## Output Contract
             Your entire response is the commit title artifact.
             It has exactly one non-empty line and this shape:
-            <commit-title>
+            {output_contract}
 
             ## Team Convention
-            - title limit: {COMMIT_TITLE_LIMIT} characters
+            - prefixes: {", ".join(commit["prefixes"])}
+            - scope rule: {scope_rule}
+            - title limit: {commit["subject_max_length"]} characters
 
             ## Acceptance Gate
             Before responding, verify the artifact is one line, matches the output contract,
@@ -71,6 +77,21 @@ def build_prompt(mode: str, status: str, diff: str, files: list[str], max_files:
             """
         ).strip()
     elif mode == COMMAND_PR:
+        pr = config["pr"]
+        sections = ", ".join(f"{MARKDOWN_HEADING_PREFIX} {section}" for section in pr["sections"])
+        checklist = ""
+        if pr["checklist"]:
+            checklist = f"Include a final {MARKDOWN_HEADING_PREFIX} Checklist section with these unchecked items: " + ", ".join(
+                pr["checklist"]
+            )
+        schema_sections = "\n\n".join(
+            f"{MARKDOWN_HEADING_PREFIX} {section}\n{BULLET_PREFIX}<{section.lower()}-bullet>"
+            for section in pr["sections"]
+        )
+        checklist_schema = ""
+        if pr["checklist"]:
+            checklist_schema = "\n\n## Checklist\n" + "\n".join(f"- [ ] {item}" for item in pr["checklist"])
+        output_contract = f"<pr-title>\n\n{schema_sections}{checklist_schema}"
         task = dedent(
             f"""
             ## Role
@@ -82,20 +103,13 @@ def build_prompt(mode: str, status: str, diff: str, files: list[str], max_files:
             ## Output Contract
             Your entire response is the PR artifact.
             It has a one-line title followed by the required Markdown body:
-            <pr-title>
-
-            ## {PR_SECTION_WHY}
-            - <why-bullet>
-
-            ## {PR_SECTION_WHAT}
-            - <what-bullet>
-
-            ## {PR_SECTION_HOW_TO_TEST}
-            - <test-bullet>
+            {output_contract}
 
             ## Team Convention
-            - required sections: ## {PR_SECTION_WHY}, ## {PR_SECTION_WHAT}, ## {PR_SECTION_HOW_TO_TEST}
-            - title limit: {PR_TITLE_LIMIT} characters
+            - required sections: {sections}
+            - title limit: {pr["title_max_length"]} characters
+            - tone: {pr["tone"]}
+            {checklist}
 
             ## Acceptance Gate
             Before responding, verify the title fits the limit, every required section exists,
@@ -137,9 +151,19 @@ def _strip_label(line: str) -> str:
     return re.sub(
         STRIP_LABEL_PATTERN,
         "",
-        line.strip(),
+        re.sub(r"^[-*]\s+", "", line.strip()),
         flags=re.IGNORECASE,
     ).strip()
+
+
+def _content_lines(raw: str) -> list[str]:
+    lines: list[str] = []
+    for line in raw.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("```"):
+            continue
+        lines.append(stripped)
+    return lines
 
 
 def _section_key(text: str) -> str:
@@ -195,7 +219,11 @@ def normalize_commit(
     config: AIGitgenConfig,
 ) -> str:
     commit = config["commit"]
-    title = next((_strip_label(line) for line in raw.splitlines() if line.strip()), "")
+    candidates = [_strip_label(line) for line in _content_lines(raw)]
+    candidates = [line for line in candidates if line and not line.startswith(MARKDOWN_HEADING_PREFIX)]
+    title = next((line for line in candidates if _commit_title_matches_config(line, config)), "")
+    if not title:
+        title = candidates[FIRST_LINE_INDEX] if candidates else ""
     if not title:
         title = fallback_title(FALLBACK_COMMIT_PREFIX, files, COMMIT_TITLE_LIMIT)
     return trim_line(title, COMMIT_TITLE_LIMIT)
@@ -208,7 +236,7 @@ def normalize_pr(
 ) -> tuple[str, str]:
     pr = config["pr"]
     sections = pr["sections"]
-    lines = [line.rstrip() for line in raw.splitlines()]
+    lines = _content_lines(raw)
     title = ""
     for line in lines:
         stripped = line.strip()
