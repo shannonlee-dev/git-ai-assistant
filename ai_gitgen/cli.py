@@ -253,9 +253,9 @@ def validate_config(config: AIGitgenConfig) -> None:
     if pr["title_max_length"] < 10:
         raise ConfigError("pr.title_max_length must be at least 10.")
     section_kinds = {_section_kind(section) for section in pr["sections"]}
-    for required in ("what", "why", "test"):
+    for required in ("what", "why", "how"):
         if required not in section_kinds:
-            raise ConfigError("pr.sections must include What, Why, and How/How to Test.")
+            raise ConfigError("pr.sections must include What, Why, and How.")
 
 
 def describe_config(config: AIGitgenConfig) -> str:
@@ -385,5 +385,5 @@ def _section_kind(value: str) -> str:
     if key in {"what", "why"}:
         return key
     if key in {"how", "how to test", "test", "tests", "testing", "validation"}:
-        return "test"
+        return "how"
     return key
