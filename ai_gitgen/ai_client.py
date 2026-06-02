@@ -7,17 +7,44 @@ from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
+from .constants import (
+    API_ERROR_KEY,
+    API_ERROR_MESSAGE_KEY,
+    API_CALL_INCREMENT,
+    API_PAYLOAD_MAX_TOKENS_KEY,
+    API_PAYLOAD_MESSAGES_KEY,
+    API_PAYLOAD_MODEL_KEY,
+    API_PAYLOAD_TEMPERATURE_KEY,
+    API_RESPONSE_CHOICES_KEY,
+    API_RESPONSE_CONTENT_KEY,
+    API_RESPONSE_MESSAGE_KEY,
+    DEFAULT_API_TIMEOUT,
+    EMPTY_ERROR_RESPONSE,
+    FIRST_API_RESPONSE_CHOICE_INDEX,
+    HTTP_AUTHORIZATION_HEADER,
+    HTTP_BEARER_PREFIX,
+    HTTP_CONTENT_TYPE_HEADER,
+    HTTP_ENCODING,
+    HTTP_ERROR_ENCODING,
+    HTTP_JSON_CONTENT_TYPE,
+    HTTP_METHOD_POST,
+    INITIAL_API_CALL_COUNT,
+    MOCK_ERROR_URL_PREFIX,
+    MOCK_PR_URL_PREFIX,
+    MOCK_URL_PREFIX,
+)
+
 
 class APIError(RuntimeError):
     """Raised when the external AI API request fails."""
 
 
 class AIClient:
-    def __init__(self, api_key: str, base_url: str, timeout: float = 30.0) -> None:
+    def __init__(self, api_key: str, base_url: str, timeout: float = DEFAULT_API_TIMEOUT) -> None:
         self.api_key = api_key
         self.base_url = base_url
         self.timeout = timeout
-        self.call_count = 0
+        self.call_count = INITIAL_API_CALL_COUNT
 
     def generate(
         self,
@@ -26,29 +53,29 @@ class AIClient:
         temperature: float,
         max_tokens: int,
     ) -> str:
-        self.call_count += 1
-        if self.base_url.startswith("mock://"):
+        self.call_count += API_CALL_INCREMENT
+        if self.base_url.startswith(MOCK_URL_PREFIX):
             return self._generate_mock()
         payload = {
-            "model": model,
-            "messages": messages,
-            "temperature": temperature,
-            "max_tokens": max_tokens,
+            API_PAYLOAD_MODEL_KEY: model,
+            API_PAYLOAD_MESSAGES_KEY: messages,
+            API_PAYLOAD_TEMPERATURE_KEY: temperature,
+            API_PAYLOAD_MAX_TOKENS_KEY: max_tokens,
         }
         request = Request(
             self.base_url,
-            data=json.dumps(payload).encode("utf-8"),
+            data=json.dumps(payload).encode(HTTP_ENCODING),
             headers={
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json",
+                HTTP_AUTHORIZATION_HEADER: f"{HTTP_BEARER_PREFIX} {self.api_key}",
+                HTTP_CONTENT_TYPE_HEADER: HTTP_JSON_CONTENT_TYPE,
             },
-            method="POST",
+            method=HTTP_METHOD_POST,
         )
         try:
             with urlopen(request, timeout=self.timeout) as response:
-                raw = response.read().decode("utf-8")
+                raw = response.read().decode(HTTP_ENCODING)
         except HTTPError as exc:
-            body = exc.read().decode("utf-8", errors="replace")
+            body = exc.read().decode(HTTP_ENCODING, errors=HTTP_ERROR_ENCODING)
             raise APIError(_format_error(exc.code, body)) from exc
         except URLError as exc:
             raise APIError(f"네트워크 오류: {exc.reason}") from exc
@@ -57,14 +84,18 @@ class AIClient:
 
         try:
             data: dict[str, Any] = json.loads(raw)
-            return str(data["choices"][0]["message"]["content"]).strip()
+            return str(
+                data[API_RESPONSE_CHOICES_KEY][FIRST_API_RESPONSE_CHOICE_INDEX][API_RESPONSE_MESSAGE_KEY][
+                    API_RESPONSE_CONTENT_KEY
+                ]
+            ).strip()
         except (KeyError, IndexError, TypeError, json.JSONDecodeError) as exc:
             raise APIError("AI API 응답 형식을 해석할 수 없습니다.") from exc
 
     def _generate_mock(self) -> str:
-        if self.base_url.startswith("mock://error"):
+        if self.base_url.startswith(MOCK_ERROR_URL_PREFIX):
             raise APIError("AI API 오류(401): mock auth failed")
-        if self.base_url.startswith("mock://pr"):
+        if self.base_url.startswith(MOCK_PR_URL_PREFIX):
             return """feat: add PR summary
 
 ## Why
@@ -82,8 +113,12 @@ class AIClient:
 def _format_error(status_code: int, body: str) -> str:
     try:
         data = json.loads(body)
-        message = data.get("error", {}).get("message") or data.get("message") or body
+        message = (
+            data.get(API_ERROR_KEY, {}).get(API_ERROR_MESSAGE_KEY)
+            or data.get(API_ERROR_MESSAGE_KEY)
+            or body
+        )
     except json.JSONDecodeError:
         message = body
-    message = str(message).strip() or "empty error response"
+    message = str(message).strip() or EMPTY_ERROR_RESPONSE
     return f"AI API 오류({status_code}): {message}"

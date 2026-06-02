@@ -10,12 +10,7 @@ Git 저장소의 `git status`와 `git diff`를 AI API에 전달해 커밋 메시
 
 ## Install
 
-```sh
-python3 -m venv .venv
-. .venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
-```
+외부 라이브러리를 사용하지 않습니다.
 
 ## Environment
 

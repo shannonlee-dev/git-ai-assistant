@@ -5,12 +5,27 @@ from __future__ import annotations
 from dataclasses import dataclass
 import re
 
+from .constants import (
+    ADDITIONAL_SECRET_PATTERNS_START_INDEX,
+    AWS_ACCESS_KEY_PATTERN,
+    COUNT_INCREMENT,
+    EMAIL_PATTERN,
+    GIT_DIFF_FILE_PREFIX,
+    INITIAL_COUNT,
+    MASKED_TOKEN,
+    OPENAI_SECRET_PATTERN,
+    SECRET_ASSIGNMENT_PATTERN_INDEX,
+    SECRET_ASSIGNMENT_PATTERN,
+    SECRET_NAME_GROUP,
+    SECRET_SEPARATOR_GROUP,
+)
+
 
 SECRET_PATTERNS = [
-    re.compile(r"(?i)(api[_-]?key|token|secret|password)(\s*[:=]\s*)([^\s'\"`]+)"), # (?!) 대소문자 구분 없이 
-    re.compile(r"\bsk-[A-Za-z0-9_-]{12,}\b"),
-    re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b"),
-    re.compile(r"\bAKIA[0-9A-Z]{16}\b"),
+    re.compile(SECRET_ASSIGNMENT_PATTERN), # (?!) 대소문자 구분 없이 
+    re.compile(OPENAI_SECRET_PATTERN),
+    re.compile(EMAIL_PATTERN),
+    re.compile(AWS_ACCESS_KEY_PATTERN),
 ]
 
 
@@ -24,16 +39,16 @@ class SafetyResult:
 
 def mask_sensitive_text(text: str) -> tuple[str, int]:
     masked = text
-    total = 0
+    total = INITIAL_COUNT
 
     def replace_secret_assignment(match: re.Match[str]) -> str:
         nonlocal total
-        total += 1
-        return f"{match.group(1)}{match.group(2)}<MASKED_TOKEN>"
+        total += COUNT_INCREMENT
+        return f"{match.group(SECRET_NAME_GROUP)}{match.group(SECRET_SEPARATOR_GROUP)}{MASKED_TOKEN}"
 
-    masked = SECRET_PATTERNS[0].sub(replace_secret_assignment, masked)
-    for pattern in SECRET_PATTERNS[1:]:
-        masked, count = pattern.subn("<MASKED_TOKEN>", masked)
+    masked = SECRET_PATTERNS[SECRET_ASSIGNMENT_PATTERN_INDEX].sub(replace_secret_assignment, masked)
+    for pattern in SECRET_PATTERNS[ADDITIONAL_SECRET_PATTERNS_START_INDEX:]:
+        masked, count = pattern.subn(MASKED_TOKEN, masked)
         total += count
     return masked, total
 
@@ -41,32 +56,37 @@ def mask_sensitive_text(text: str) -> tuple[str, int]:
 def limit_diff(text: str, max_files: int, max_lines: int) -> tuple[str, int, int]:
     lines = text.splitlines()
     kept: list[str] = []
-    seen_files = 0
-    omitted_files = 0
-    omitted_lines = 0
+    seen_files = INITIAL_COUNT
+    omitted_files = INITIAL_COUNT
+    omitted_lines = INITIAL_COUNT
     include_current_file = True
 
     for line in lines:
-        if line.startswith("diff --git "):
-            seen_files += 1
+        if line.startswith(GIT_DIFF_FILE_PREFIX):
+            seen_files += COUNT_INCREMENT
             include_current_file = seen_files <= max_files
             if not include_current_file:
-                omitted_files += 1
+                omitted_files += COUNT_INCREMENT
                 continue
         if not include_current_file:
-            omitted_lines += 1
+            omitted_lines += COUNT_INCREMENT
             continue
         if len(kept) < max_lines:
             kept.append(line)
         else:
-            omitted_lines += 1
+            omitted_lines += COUNT_INCREMENT
 
     return "\n".join(kept), omitted_lines, omitted_files
 
 
 def apply_safe_mode(text: str, enabled: bool, max_files: int, max_lines: int) -> SafetyResult:
     if not enabled:
-        return SafetyResult(text=text, masked_count=0, omitted_lines=0, omitted_files=0)
+        return SafetyResult(
+            text=text,
+            masked_count=INITIAL_COUNT,
+            omitted_lines=INITIAL_COUNT,
+            omitted_files=INITIAL_COUNT,
+        )
     limited, omitted_lines, omitted_files = limit_diff(text, max_files, max_lines)
     masked, masked_count = mask_sensitive_text(limited)
     return SafetyResult(
