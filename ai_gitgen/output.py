@@ -53,24 +53,39 @@ def build_prompt(mode: str, status: str, diff: str, files: list[str], max_files:
 
     file_list = "\n".join(f"- {name}" for name in files[:max_files]) or "- unknown"
     if mode == COMMAND_COMMIT:
-        schema = dedent(
-            """
-            ```md
-            <commit-title>
-            ```
-            """
-        ).strip()
         task = dedent(
             f"""
-            Generate a Git commit message from the supplied git status and git diff.
-            Return only one concise title line, with no body or bullet list.
-            The title must be {COMMIT_TITLE_LIMIT} characters or fewer.
+            ## Role
+            You generate Git commit metadata from staged changes.
+
+            ## Source Of Truth
+            Use only the supplied changed files, git status, git diff, and team convention.
+
+            ## Output Contract
+            Your entire response is the commit title artifact.
+            It has exactly one non-empty line and this shape:
+            <commit-title>
+
+            ## Team Convention
+            - title limit: {COMMIT_TITLE_LIMIT} characters
+
+            ## Acceptance Gate
+            Before responding, verify the artifact is one line, matches the output contract,
+            fits the title limit, and summarizes the most important staged change.
             """
-        ).strip() + f"\nUse this exact output schema:\n{schema}"
+        ).strip()
     elif mode == COMMAND_PR:
-        schema = dedent(
+        task = dedent(
             f"""
-            ```md
+            ## Role
+            You generate Pull Request metadata from staged changes.
+
+            ## Source Of Truth
+            Use only the supplied changed files, git status, git diff, and team convention.
+
+            ## Output Contract
+            Your entire response is the PR artifact.
+            It has a one-line title followed by the required Markdown body:
             <pr-title>
 
             ## {PR_SECTION_WHY}
@@ -81,32 +96,38 @@ def build_prompt(mode: str, status: str, diff: str, files: list[str], max_files:
 
             ## {PR_SECTION_HOW_TO_TEST}
             - <test-bullet>
-            ```
+
+            ## Team Convention
+            - required sections: ## {PR_SECTION_WHY}, ## {PR_SECTION_WHAT}, ## {PR_SECTION_HOW_TO_TEST}
+            - title limit: {PR_TITLE_LIMIT} characters
+
+            ## Acceptance Gate
+            Before responding, verify the title fits the limit, every required section exists,
+            every required section has at least one bullet, and the artifact summarizes the
+            most important staged changes.
             """
         ).strip()
-        task = dedent(
-            f"""
-            Generate a Pull Request draft from the supplied git status and git diff.
-            Return a one-line title, then a body with exactly these Markdown sections:
-            ## {PR_SECTION_WHY}, ## {PR_SECTION_WHAT}, ## {PR_SECTION_HOW_TO_TEST}. Each section must include at least one bullet.
-            The PR title must be {PR_TITLE_LIMIT} characters or fewer.
-            """
-        ).strip() + f"\nUse this exact output schema:\n{schema}"
 
     user = dedent(
         f"""
-        Changed files:
+        ## Changed Files
         {file_list}
 
-        git status --short:
+        ## Git Status Short
         {status}
 
-        git diff:
+        ## Git Diff
         {diff}
         """
     ).strip()
     return [
-        {"role": PROMPT_SYSTEM_ROLE, "content": "You help developers write accurate Git metadata."},
+        {
+            "role": PROMPT_SYSTEM_ROLE,
+            "content": (
+                "You produce only the requested Git metadata artifact. "
+                "Follow the output contract exactly and use the acceptance gate before responding."
+            ),
+        },
         {"role": PROMPT_USER_ROLE, "content": f"{task}\n\n{user}"},
     ]
 
