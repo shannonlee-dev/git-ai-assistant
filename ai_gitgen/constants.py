@@ -44,24 +44,8 @@ FALLBACK_COMMIT_PREFIX = "chore"
 FALLBACK_PR_PREFIX = "chore"
 MAX_FALLBACK_WHAT_FILES = 3
 
-PR_SECTION_WHY = "Why"
-PR_SECTION_WHAT = "What"
-PR_SECTION_HOW_TO_TEST = "How to Test"
-PR_SECTIONS = (PR_SECTION_WHY, PR_SECTION_WHAT, PR_SECTION_HOW_TO_TEST)
-PR_SECTION_ALIASES = {
-    "why": PR_SECTION_WHY,
-    "what": PR_SECTION_WHAT,
-    "how": PR_SECTION_HOW_TO_TEST,
-    "how to test": PR_SECTION_HOW_TO_TEST,
-    "test": PR_SECTION_HOW_TO_TEST,
-    "tests": PR_SECTION_HOW_TO_TEST,
-    "testing": PR_SECTION_HOW_TO_TEST,
-    "validation": PR_SECTION_HOW_TO_TEST,
-}
-
 DEFAULT_WHY_BULLET = "- Capture the reason for the current Git changes."
 DEFAULT_WHAT_BULLET = "- Summarize the implementation changes."
-DEFAULT_HOW_TO_TEST_BULLET = "- Run the project checks for this change."
 
 STRIP_LABEL_PATTERN = r"^(#+\s*)?(-\s*)?(commit message|commit title|pr title|title)\s*[:：-]\s*"
 PR_HEADING_PATTERN = r"^##\s+(.+?)\s*$"
