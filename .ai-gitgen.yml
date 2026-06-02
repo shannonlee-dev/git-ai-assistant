@@ -7,11 +7,7 @@ commit:
     - chore
   scope_required: false
   subject_max_length: 72
-
-branch:
-  patterns:
-    - feature/<name>-<topic>
-
+  
 pr:
   title_max_length: 80
   sections:
