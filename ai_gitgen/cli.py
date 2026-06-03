@@ -92,8 +92,13 @@ def add_generation_options(parser: argparse.ArgumentParser) -> None:
     safety = parser.add_mutually_exclusive_group()
     safety.add_argument("--safe-mode", dest="safe_mode", action="store_true", default=DEFAULT_SAFE_MODE)
     safety.add_argument("--no-safe-mode", dest="safe_mode", action="store_false")
-    parser.add_argument("--max-files", type=int, default=DEFAULT_MAX_FILES, help="Safe-mode diff file limit")
-    parser.add_argument("--max-diff-lines", type=int, default=DEFAULT_MAX_DIFF_LINES, help="Safe-mode diff line limit")
+    parser.add_argument("--max-files", type=parse_positive_int, default=DEFAULT_MAX_FILES, help="Safe-mode diff file limit")
+    parser.add_argument(
+        "--max-diff-lines",
+        type=parse_positive_int,
+        default=DEFAULT_MAX_DIFF_LINES,
+        help="Safe-mode diff line limit",
+    )
 
 
 def parse_max_tokens(value: str) -> int:
@@ -104,6 +109,16 @@ def parse_max_tokens(value: str) -> int:
     if max_tokens < MIN_MAX_TOKENS:
         raise argparse.ArgumentTypeError(f"must be at least {MIN_MAX_TOKENS}")
     return max_tokens
+
+
+def parse_positive_int(value: str) -> int:
+    try:
+        number = int(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("must be an integer") from exc
+    if number < 1:
+        raise argparse.ArgumentTypeError("must be at least 1")
+    return number
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -300,7 +315,7 @@ def validate_config(config: AIGitgenConfig) -> None:
         raise ConfigError("pr.sections must include at least one section.")
     if pr["title_max_length"] < 10:
         raise ConfigError("pr.title_max_length must be at least 10.")
-    section_kinds = {_section_key(section) for section in pr["sections"]}
+    section_kinds = {_section_kind(section) for section in pr["sections"]}
     for required in ("what", "why", "how"):
         if required not in section_kinds:
             raise ConfigError("pr.sections must include What, Why, and How.")
@@ -430,4 +445,13 @@ def _parse_scalar(value: str) -> Any:
 
 def _section_key(value: str) -> str:
     key = " ".join(value.strip().lower().split())
+    return key
+
+
+def _section_kind(value: str) -> str:
+    key = _section_key(value)
+    if key in {"what", "why"}:
+        return key
+    if key in {"how", "how to test", "test", "tests", "testing", "validation"}:
+        return "how"
     return key

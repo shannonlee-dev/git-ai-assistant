@@ -201,6 +201,7 @@ def _normalize_pr_heading(line: str, sections: tuple[str, ...]) -> str:
         return ""
     return next((name for name in sections if _section_kind(name) == heading_kind), "")
 
+
 def fallback_title(prefix: str, files: list[str], limit: int = 72) -> str:
     target = files[0] if files else DEFAULT_FALLBACK_TARGET
     return trim_line(f"{prefix}: update {target}", limit)
