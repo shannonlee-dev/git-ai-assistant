@@ -6,17 +6,12 @@ from dataclasses import dataclass
 import re
 
 from .constants import (
-    ADDITIONAL_SECRET_PATTERNS_START_INDEX,
     AWS_ACCESS_KEY_PATTERN,
     EMAIL_PATTERN,
     GIT_DIFF_FILE_PREFIX,
-    INITIAL_COUNT,
     MASKED_TOKEN,
     OPENAI_SECRET_PATTERN,
     SECRET_ASSIGNMENT_PATTERN,
-    SECRET_ASSIGNMENT_PATTERN_INDEX,
-    SECRET_NAME_GROUP,
-    SECRET_SEPARATOR_GROUP,
 )
 
 
@@ -38,15 +33,15 @@ class SafetyResult:
 
 def mask_sensitive_text(text: str) -> tuple[str, int]:
     masked = text
-    total = INITIAL_COUNT
+    total = 0
 
     def replace_secret_assignment(match: re.Match[str]) -> str:
         nonlocal total
         total += 1
-        return f"{match.group(SECRET_NAME_GROUP)}{match.group(SECRET_SEPARATOR_GROUP)}{MASKED_TOKEN}"
+        return f"{match.group(1)}{match.group(2)}{MASKED_TOKEN}"
 
-    masked = SECRET_PATTERNS[SECRET_ASSIGNMENT_PATTERN_INDEX].sub(replace_secret_assignment, masked)
-    for pattern in SECRET_PATTERNS[ADDITIONAL_SECRET_PATTERNS_START_INDEX:]:
+    masked = SECRET_PATTERNS[0].sub(replace_secret_assignment, masked)
+    for pattern in SECRET_PATTERNS[1:]:
         masked, count = pattern.subn(MASKED_TOKEN, masked)
         total += count
     return masked, total

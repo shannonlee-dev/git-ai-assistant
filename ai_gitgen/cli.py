@@ -31,12 +31,9 @@ from .constants import (
     EXIT_API_ERROR,
     EXIT_SUCCESS,
     EXIT_USAGE_ERROR,
-    MARKER_SPLIT_MAX,
     MIN_MAX_TOKENS,
     PR_BODY_MARKER,
-    PR_TITLE_CONTENT_LINE_INDEX,
     PR_TITLE_MARKER,
-    ZERO_API_CALLS,
 )
 from .git_tools import GitError, collect_changes
 from .output import (
@@ -126,16 +123,17 @@ def run_generation(args: argparse.Namespace) -> int:
 
     print(f"[INFO] 현재 브랜치: {changes.branch}")
     print(f"[INFO] Git status 수집 완료: {len(changes.changed_files)}개 파일 변경 감지")
-    try:
-        config = load_ai_gitgen_config(changes.root, args.config)
-    except ConfigError as exc:
-        print_config_error(exc)
-        return EXIT_USAGE_ERROR
 
     if not changes.has_changes:
         target = "커밋 메시지" if args.command == COMMAND_COMMIT else "PR 초안"
         print(f"[INFO] 변경 사항이 없습니다. {target}을 생성하지 않고 종료합니다.")
         return EXIT_SUCCESS
+
+    try:
+        config = load_ai_gitgen_config(changes.root, args.config)
+    except ConfigError as exc:
+        print_config_error(exc)
+        return EXIT_USAGE_ERROR
 
     safety = apply_safe_mode(changes.diff, args.safe_mode, args.max_files, args.max_diff_lines)
     print(f"[INFO] Git diff 수집 완료: {changes.diff_line_count}줄")
@@ -149,7 +147,7 @@ def run_generation(args: argparse.Namespace) -> int:
 
     if args.dry_run:
         print("[INFO] dry-run 모드: AI API를 호출하지 않습니다.")
-        print(f"[INFO] AI API 호출 횟수: {ZERO_API_CALLS}")
+        print("[INFO] AI API 호출 횟수: 0")
         print(DRY_RUN_SUMMARY_MARKER)
         print(describe_config(config))
         print("\n".join(changes.status.splitlines()[:DRY_RUN_STATUS_PREVIEW_LINES]))
@@ -161,7 +159,8 @@ def run_generation(args: argparse.Namespace) -> int:
         print('[ERROR] AI_API_KEY 환경변수가 설정되지 않았습니다. 예) export AI_API_KEY="YOUR_KEY"', file=sys.stderr)
         return EXIT_USAGE_ERROR
 
-    messages = build_prompt(args.command, changes.status, safety.text, changes.changed_files, args.max_files, config)
+    prompt_files = changes.changed_files[: args.max_files] if args.safe_mode else changes.changed_files
+    messages = build_prompt(args.command, changes.status, safety.text, prompt_files, config)
     client = AIClient(api_key=api_key, base_url=args.api_base_url)
     print("[INFO] AI API 요청 중...")
     try:
@@ -212,14 +211,14 @@ def validate_from_stdin(config_path: str = DEFAULT_CONFIG_FILE) -> int:
         title = ""
         body = text
         if PR_TITLE_MARKER in text:
-            after_title = text.split(PR_TITLE_MARKER, MARKER_SPLIT_MAX)[PR_TITLE_CONTENT_LINE_INDEX]
+            after_title = text.split(PR_TITLE_MARKER, 1)[1]
             title = (
-                after_title.splitlines()[PR_TITLE_CONTENT_LINE_INDEX].strip()
-                if len(after_title.splitlines()) > PR_TITLE_CONTENT_LINE_INDEX
+                after_title.splitlines()[1].strip()
+                if len(after_title.splitlines()) > 1
                 else ""
             )
         if PR_BODY_MARKER in text:
-            body = text.split(PR_BODY_MARKER, MARKER_SPLIT_MAX)[PR_TITLE_CONTENT_LINE_INDEX]
+            body = text.split(PR_BODY_MARKER, 1)[1]
         ok, errors = validate_pr(title, body, config)
     else:
         ok, errors = validate_commit(_extract_commit_message(text), config)
@@ -233,7 +232,7 @@ def validate_from_stdin(config_path: str = DEFAULT_CONFIG_FILE) -> int:
 def _extract_commit_message(text: str) -> str:
     if COMMIT_OUTPUT_HEADER not in text:
         return text
-    after_header = text.split(COMMIT_OUTPUT_HEADER, MARKER_SPLIT_MAX)[PR_TITLE_CONTENT_LINE_INDEX]
+    after_header = text.split(COMMIT_OUTPUT_HEADER, 1)[1]
     lines: list[str] = []
     for line in after_header.splitlines():
         stripped = line.strip()

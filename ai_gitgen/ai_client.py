@@ -9,7 +9,6 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 from .constants import (
-    API_CALL_INCREMENT,
     API_ERROR_CODE_KEY,
     API_ERROR_DESCRIPTION_KEY,
     API_ERROR_DETAIL_KEY,
@@ -25,7 +24,6 @@ from .constants import (
     API_RESPONSE_MESSAGE_KEY,
     DEFAULT_API_TIMEOUT,
     EMPTY_ERROR_RESPONSE,
-    FIRST_API_RESPONSE_CHOICE_INDEX,
     HTTP_AUTHORIZATION_HEADER,
     HTTP_BEARER_PREFIX,
     HTTP_CONTENT_TYPE_HEADER,
@@ -35,7 +33,6 @@ from .constants import (
     HTTP_METHOD_POST,
     HTTP_RETRY_AFTER_HEADER,
     HTTP_STATUS_HINTS,
-    INITIAL_API_CALL_COUNT,
     MOCK_ERROR_URL_PREFIX,
     MOCK_PR_URL_PREFIX,
     MOCK_URL_PREFIX,
@@ -51,7 +48,7 @@ class AIClient:
         self.api_key = api_key
         self.base_url = base_url
         self.timeout = timeout
-        self.call_count = INITIAL_API_CALL_COUNT
+        self.call_count = 0
 
     def generate(
         self,
@@ -60,7 +57,7 @@ class AIClient:
         temperature: float,
         max_tokens: int,
     ) -> str:
-        self.call_count += API_CALL_INCREMENT
+        self.call_count += 1
         if self.base_url.startswith(MOCK_URL_PREFIX):
             return self._generate_mock()
         payload = {
@@ -92,7 +89,7 @@ class AIClient:
         try:
             data: dict[str, Any] = json.loads(raw)
             return str(
-                data[API_RESPONSE_CHOICES_KEY][FIRST_API_RESPONSE_CHOICE_INDEX][API_RESPONSE_MESSAGE_KEY][
+                data[API_RESPONSE_CHOICES_KEY][0][API_RESPONSE_MESSAGE_KEY][
                     API_RESPONSE_CONTENT_KEY
                 ]
             ).strip()

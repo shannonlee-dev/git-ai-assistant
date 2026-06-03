@@ -11,12 +11,9 @@ from .constants import (
     GIT_BRANCH_CURRENT_ARGS,
     GIT_EXECUTABLE,
     GIT_RENAME_SEPARATOR,
-    GIT_RENAME_SPLIT_MAX,
-    GIT_RENAME_TARGET_INDEX,
     GIT_REV_PARSE_ROOT_ARGS,
     GIT_STAGED_DIFF_ARGS,
     GIT_STATUS_SHORT_ARGS,
-    PROCESS_SUCCESS_RETURN_CODE,
     SHORT_STATUS_PATH_OFFSET,
 )
 
@@ -51,7 +48,7 @@ def _run_git(args: list[str], cwd: Path) -> str:
         stderr=subprocess.PIPE,
         check=False,
     )
-    if result.returncode != PROCESS_SUCCESS_RETURN_CODE:
+    if result.returncode != 0:
         detail = result.stderr.strip() or result.stdout.strip() or "unknown git error"
         raise GitError(detail)
     return result.stdout
@@ -82,7 +79,7 @@ def parse_changed_files(status: str) -> list[str]:
             else line.strip()
         )
         if GIT_RENAME_SEPARATOR in path:
-            path = path.split(GIT_RENAME_SEPARATOR, GIT_RENAME_SPLIT_MAX)[GIT_RENAME_TARGET_INDEX]
+            path = path.split(GIT_RENAME_SEPARATOR, 1)[1]
         files.append(path)
     return files
 
