@@ -14,12 +14,11 @@ from .constants import (
     COMMAND_COMMIT,
     COMMAND_PR,
     DEFAULT_FALLBACK_TARGET,
+    DEFAULT_HOW_TO_TEST_BULLET,
     DEFAULT_WHAT_BULLET,
     DEFAULT_WHY_BULLET,
     FALLBACK_COMMIT_PREFIX,
     FALLBACK_PR_PREFIX,
-    FIRST_LINE_INDEX,
-    FULL_MATCH_GROUP,
     HEADING_SUFFIX_CHARS,
     MARKDOWN_HEADING_PREFIX,
     MAX_COMMIT_MESSAGE_LINES,
@@ -27,26 +26,28 @@ from .constants import (
     PR_BODY_MARKER,
     PR_BULLET_PATTERN,
     PR_HEADING_PATTERN,
-    PR_HEADING_TEXT_GROUP,
     PR_TITLE_MARKER,
-    PROMPT_MODE_COMMIT,
-    PROMPT_MODE_PR,
     PROMPT_SYSTEM_ROLE,
     PROMPT_USER_ROLE,
     STRIP_LABEL_PATTERN,
     TITLE_ELLIPSIS,
-    TITLE_ELLIPSIS_WIDTH,
     WHITESPACE_PATTERN,
 )
 
 AIGitgenConfig = dict[str, Any]
 
 
-def build_prompt(mode: str, status: str, diff: str, files: list[str], max_files: int) -> list[dict[str, str]]:
-    if mode not in {PROMPT_MODE_COMMIT, PROMPT_MODE_PR}:
+def build_prompt(
+    mode: str,
+    status: str,
+    diff: str,
+    files: list[str],
+    config: AIGitgenConfig,
+) -> list[dict[str, str]]:
+    if mode not in {COMMAND_COMMIT, COMMAND_PR}:
         raise ValueError(f"Unsupported prompt mode: {mode}")
 
-    file_list = "\n".join(f"- {name}" for name in files[:max_files]) or "- unknown"
+    file_list = "\n".join(f"{BULLET_PREFIX}{name}" for name in files) or f"{BULLET_PREFIX}unknown"
     if mode == COMMAND_COMMIT:
         commit = config["commit"]
         scope_rule = "A scope is required." if commit["scope_required"] else "Do not add a scope unless necessary."
@@ -143,7 +144,7 @@ def build_prompt(mode: str, status: str, diff: str, files: list[str], max_files:
 
 def trim_line(text: str, limit: int) -> str:
     clean = " ".join(text.strip().split())
-    return clean if len(clean) <= limit else clean[: limit - TITLE_ELLIPSIS_WIDTH].rstrip() + TITLE_ELLIPSIS
+    return clean if len(clean) <= limit else clean[: limit - len(TITLE_ELLIPSIS)].rstrip() + TITLE_ELLIPSIS
 
 
 def _strip_label(line: str) -> str:
@@ -202,7 +203,7 @@ def _normalize_pr_heading(line: str, sections: tuple[str, ...]) -> str:
     return next((name for name in sections if _section_kind(name) == heading_kind), "")
 
 def fallback_title(prefix: str, files: list[str], limit: int = 72) -> str:
-    target = files[FIRST_LINE_INDEX] if files else DEFAULT_FALLBACK_TARGET
+    target = files[0] if files else DEFAULT_FALLBACK_TARGET
     return trim_line(f"{prefix}: update {target}", limit)
 
 
@@ -215,7 +216,7 @@ def _commit_title_matches_config(title: str, config: AIGitgenConfig) -> bool:
 
 def _default_commit_prefix(config: AIGitgenConfig) -> str:
     prefixes = config["commit"]["prefixes"]
-    return FALLBACK_COMMIT_PREFIX if FALLBACK_COMMIT_PREFIX in prefixes else prefixes[FIRST_LINE_INDEX]
+    return FALLBACK_COMMIT_PREFIX if FALLBACK_COMMIT_PREFIX in prefixes else prefixes[0]
 
 
 def normalize_commit(
@@ -228,7 +229,7 @@ def normalize_commit(
     candidates = [line for line in candidates if line and not line.startswith(MARKDOWN_HEADING_PREFIX)]
     title = next((line for line in candidates if _commit_title_matches_config(line, config)), "")
     if not title:
-        title = candidates[FIRST_LINE_INDEX] if candidates else ""
+        title = candidates[0] if candidates else ""
     if not title:
         title = fallback_title(FALLBACK_COMMIT_PREFIX, files, COMMIT_TITLE_LIMIT)
     return trim_line(title, COMMIT_TITLE_LIMIT)
@@ -307,7 +308,7 @@ def validate_commit(
 ) -> tuple[bool, list[str]]:
     commit = config["commit"]
     lines = [line.strip() for line in text.splitlines() if line.strip()]
-    first = lines[FIRST_LINE_INDEX] if lines else ""
+    first = lines[0] if lines else ""
     errors: list[str] = []
     if not first:
         errors.append("커밋 제목이 없습니다.")
@@ -337,7 +338,7 @@ def validate_pr(
         if not match:
             errors.append(f"{section} 섹션이 없습니다.")
             continue
-        if not re.search(PR_BULLET_PATTERN, match.group(FULL_MATCH_GROUP)):
+        if not re.search(PR_BULLET_PATTERN, match.group(0)):
             errors.append(f"{section} 섹션에 불릿이 없습니다.")
     for item in pr["checklist"]:
         if not re.search(rf"(?m)^-\s+\[[ xX]\]\s+{re.escape(item)}\s*$", body):
