@@ -50,9 +50,9 @@ def mask_sensitive_text(text: str) -> tuple[str, int]:
 def limit_diff(text: str, max_files: int, max_lines: int) -> tuple[str, int, int]:
     lines = text.splitlines()
     kept: list[str] = []
-    seen_files = INITIAL_COUNT
-    omitted_files = INITIAL_COUNT
-    omitted_lines = INITIAL_COUNT
+    seen_files = 0
+    omitted_files = 0
+    omitted_lines = 0
     include_current_file = True
 
     for line in lines:
@@ -60,15 +60,15 @@ def limit_diff(text: str, max_files: int, max_lines: int) -> tuple[str, int, int
             seen_files += 1
             include_current_file = seen_files <= max_files
             if not include_current_file:
-                omitted_files += COUNT_INCREMENT
+                omitted_files += 1
                 continue
         if not include_current_file:
-            omitted_lines += COUNT_INCREMENT
+            omitted_lines += 1
             continue
         if len(kept) < max_lines:
             kept.append(line)
         else:
-            omitted_lines += COUNT_INCREMENT
+            omitted_lines += 1
 
     return "\n".join(kept), omitted_lines, omitted_files
 
@@ -77,9 +77,9 @@ def apply_safe_mode(text: str, enabled: bool, max_files: int, max_lines: int) ->
     if not enabled:
         return SafetyResult(
             text=text,
-            masked_count=INITIAL_COUNT,
-            omitted_lines=INITIAL_COUNT,
-            omitted_files=INITIAL_COUNT,
+            masked_count=0,
+            omitted_lines=0,
+            omitted_files=0,
         )
     limited, omitted_lines, omitted_files = limit_diff(text, max_files, max_lines)
     masked, masked_count = mask_sensitive_text(limited)

@@ -7,7 +7,7 @@ commit:
     - chore
     - refactor
   scope_required: false
-  subject_max_length: 72
+  subject_max_length: 100 
   
 pr:
   title_max_length: 80
