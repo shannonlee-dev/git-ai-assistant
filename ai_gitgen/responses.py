@@ -161,20 +161,21 @@ def normalize_pr(
         ):
             section_bullets[current].append(line.strip())
 
-    if not section_bullets[PR_SECTION_WHY]:
-        section_bullets[PR_SECTION_WHY] = [DEFAULT_WHY_BULLET]
-    if not section_bullets[PR_SECTION_WHAT]:
-        if files:
-            section_bullets[PR_SECTION_WHAT] = [
-                f"{BULLET_PREFIX}Update {name}" for name in files[:MAX_FALLBACK_WHAT_FILES]
-            ]
+    for section in sections:
+        if section_bullets[section]:
+            continue
+        section_kind = _section_kind(section)
+        if section_kind == "why":
+            section_bullets[section] = [DEFAULT_WHY_BULLET]
+        elif section_kind == "what" and files:
+            section_bullets[section] = [f"{BULLET_PREFIX}Update {name}" for name in files[:MAX_FALLBACK_WHAT_FILES]]
+        elif section_kind == "test":
+            section_bullets[section] = [DEFAULT_HOW_TO_TEST_BULLET]
         else:
-            section_bullets[PR_SECTION_WHAT] = [DEFAULT_WHAT_BULLET]
-    if not section_bullets[PR_SECTION_HOW_TO_TEST]:
-        section_bullets[PR_SECTION_HOW_TO_TEST] = [DEFAULT_HOW_TO_TEST_BULLET]
+            section_bullets[section] = [DEFAULT_WHAT_BULLET]
 
     body_parts: list[str] = []
-    for section in PR_SECTIONS:
+    for section in sections:
         body_parts.append(f"{MARKDOWN_HEADING_PREFIX} {section}")
         body_parts.extend(section_bullets[section])
         body_parts.append("")
@@ -195,8 +196,8 @@ def validate_commit(
     errors: list[str] = []
     if not first:
         errors.append("커밋 제목이 없습니다.")
-    if len(first) > COMMIT_TITLE_LIMIT:
-        errors.append(f"커밋 제목이 {COMMIT_TITLE_LIMIT}자를 초과합니다.")
+    if len(first) > commit["subject_max_length"]:
+        errors.append(f"커밋 제목이 {commit['subject_max_length']}자를 초과합니다.")
     if len(lines) > MAX_COMMIT_MESSAGE_LINES:
         errors.append("커밋 메시지는 제목 한 줄만 허용됩니다.")
     if first and not _commit_title_matches_config(first, config):
@@ -213,10 +214,10 @@ def validate_pr(
     errors: list[str] = []
     if not title.strip():
         errors.append("PR 제목이 없습니다.")
-    if len(title.strip()) > PR_TITLE_LIMIT:
-        errors.append(f"PR 제목이 {PR_TITLE_LIMIT}자를 초과합니다.")
-    for section in PR_SECTIONS:
-        pattern = PR_SECTION_PATTERN_TEMPLATE.format(section=re.escape(section))
+    if len(title.strip()) > pr["title_max_length"]:
+        errors.append(f"PR 제목이 {pr['title_max_length']}자를 초과합니다.")
+    for section in pr["sections"]:
+        pattern = rf"(?ms)^{MARKDOWN_HEADING_PREFIX}\s+{re.escape(section)}\s*$.*?(?=^{MARKDOWN_HEADING_PREFIX}\s+|\Z)"
         match = re.search(pattern, body)
         if not match:
             errors.append(f"{section} 섹션이 없습니다.")

@@ -9,8 +9,12 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 from .constants import (
+    API_ERROR_CODE_KEY,
+    API_ERROR_DESCRIPTION_KEY,
+    API_ERROR_DETAIL_KEY,
     API_ERROR_KEY,
     API_ERROR_MESSAGE_KEY,
+    API_ERROR_STATUS_KEY,
     API_PAYLOAD_MAX_TOKENS_KEY,
     API_PAYLOAD_MESSAGES_KEY,
     API_PAYLOAD_MODEL_KEY,
@@ -118,7 +122,7 @@ class AIClient:
 
     def _generate_mock(self) -> str:
         if self.base_url.startswith(MOCK_ERROR_URL_PREFIX):
-            raise APIError("AI API 오류(401): mock auth failed")
+            raise APIError(_format_error(401, json.dumps({API_ERROR_MESSAGE_KEY: "mock auth failed"})))
         if self.base_url.startswith(MOCK_PR_URL_PREFIX):
             return """feat: add PR summary
 
@@ -154,9 +158,9 @@ def _format_error(status_code: int, body: str, headers: Mapping[str, str] | None
     hint = HTTP_STATUS_HINTS.get(status_code)
     if hint:
         parts.append(f"안내: {hint}")
-    retry_after = _get_header(headers, RETRY_AFTER_HEADER)
+    retry_after = _get_header(headers, HTTP_RETRY_AFTER_HEADER)
     if retry_after:
-        parts.append(f"{RETRY_AFTER_HEADER}: {retry_after}")
+        parts.append(f"{HTTP_RETRY_AFTER_HEADER}: {retry_after}")
     return " | ".join(parts)
 
 
@@ -195,10 +199,10 @@ def _extract_message_from_mapping(data: dict[str, Any]) -> str:
             return nested_message
     for key in (
         API_ERROR_MESSAGE_KEY,
-        ERROR_DETAIL_KEY,
-        ERROR_DESCRIPTION_KEY,
-        ERROR_CODE_KEY,
-        ERROR_STATUS_KEY,
+        API_ERROR_DETAIL_KEY,
+        API_ERROR_DESCRIPTION_KEY,
+        API_ERROR_CODE_KEY,
+        API_ERROR_STATUS_KEY,
     ):
         message = data.get(key)
         if message:
