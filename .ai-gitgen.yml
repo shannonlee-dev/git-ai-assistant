@@ -6,7 +6,7 @@ commit:
     - test
     - chore
   scope_required: false
-  subject_max_length: 200
+  subject_max_length: 72
   
 pr:
   title_max_length: 80
