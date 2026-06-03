@@ -175,13 +175,31 @@ def _is_checklist_bullet(line: str) -> bool:
 
 def _heading_text(line: str) -> str:
     match = re.match(PR_HEADING_PATTERN, line.strip())
-    return match.group(PR_HEADING_TEXT_GROUP) if match else ""
+    return match.group(1) if match else ""
+
+
+def _section_kind(section: str) -> str:
+    key = _section_key(section)
+    if "test" in key or "validat" in key:
+        return "test"
+    if key in {"what", "why"}:
+        return key
+    if key in {"how", "how to test"}:
+        return "test"
+    return ""
 
 
 def _normalize_pr_heading(line: str, sections: tuple[str, ...]) -> str:
-    heading_key = _section_key(_heading_text(line))
-    return next((name for name in sections if _section_key(name) == heading_key), "")
+    heading = _heading_text(line)
+    heading_key = _section_key(heading)
+    exact = next((name for name in sections if _section_key(name) == heading_key), "")
+    if exact:
+        return exact
 
+    heading_kind = _section_kind(heading)
+    if not heading_kind:
+        return ""
+    return next((name for name in sections if _section_kind(name) == heading_kind), "")
 
 def fallback_title(prefix: str, files: list[str], limit: int = 72) -> str:
     target = files[FIRST_LINE_INDEX] if files else DEFAULT_FALLBACK_TARGET
