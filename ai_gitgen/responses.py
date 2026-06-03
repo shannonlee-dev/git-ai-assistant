@@ -29,10 +29,9 @@ from .constants import (
 from .types import AIGitgenConfig
 
 
-def trim_line(text: str, limit: int) -> str:
+def _trim_line(text: str, limit: int) -> str:
     clean = " ".join(text.strip().split())
     return clean if len(clean) <= limit else clean[: limit - len(TITLE_ELLIPSIS)].rstrip() + TITLE_ELLIPSIS
-
 
 def _strip_label(line: str) -> str:  #쓸데없는 문장 삭제.
     return re.sub(
@@ -57,15 +56,6 @@ def _section_key(text: str) -> str:
     return re.sub(WHITESPACE_PATTERN, " ", text.strip().rstrip(HEADING_SUFFIX_CHARS)).lower()
 
 
-def _is_checklist_bullet(line: str) -> bool:
-    return bool(re.match(r"^-\s+\[[ xX]\]\s+", line.strip()))
-
-
-def _heading_text(line: str) -> str:
-    match = re.match(PR_HEADING_PATTERN, line.strip())
-    return match.group(1) if match else ""
-
-
 def _section_kind(section: str) -> str:
     key = _section_key(section)
     if "test" in key or "validat" in key:
@@ -77,22 +67,9 @@ def _section_kind(section: str) -> str:
     return ""
 
 
-def _normalize_pr_heading(line: str, sections: tuple[str, ...]) -> str:
-    heading = _heading_text(line)
-    heading_key = _section_key(heading)
-    exact = next((name for name in sections if _section_key(name) == heading_key), "")
-    if exact:
-        return exact
-
-    heading_kind = _section_kind(heading)
-    if not heading_kind:
-        return ""
-    return next((name for name in sections if _section_kind(name) == heading_kind), "")
-
-
 def fallback_title(prefix: str, files: list[str], limit: int = 72) -> str:
     target = files[0] if files else DEFAULT_FALLBACK_TARGET
-    return trim_line(f"{prefix}: update {target}", limit)
+    return _trim_line(f"{prefix}: update {target}", limit)
 
 
 def _commit_title_matches_config(title: str, config: AIGitgenConfig) -> bool:
@@ -121,13 +98,13 @@ def normalize_commit(
     if not title:
         prefix = _default_commit_prefix(config)
         title = fallback_title(prefix, files, commit["subject_max_length"])
-    title = trim_line(title, commit["subject_max_length"])
+    title = _trim_line(title, commit["subject_max_length"])
     if _commit_title_matches_config(title, config):
         return title
     prefix = _default_commit_prefix(config)
     scope = "(general)" if commit["scope_required"] else ""
     clean_title = re.sub(r"^[a-z]+(\([^)]+\))?:\s+", "", title, flags=re.IGNORECASE)
-    return trim_line(f"{prefix}{scope}: {clean_title}", commit["subject_max_length"])
+    return _trim_line(f"{prefix}{scope}: {clean_title}", commit["subject_max_length"])
 
 
 def normalize_pr(
@@ -147,19 +124,26 @@ def normalize_pr(
         break
     if not title:
         title = fallback_title(FALLBACK_PR_PREFIX, files, pr["title_max_length"])
-    title = trim_line(title, pr["title_max_length"])
+    title = _trim_line(title, pr["title_max_length"])
 
     section_bullets: dict[str, list[str]] = {name: [] for name in sections}
     section_positions = {_section_key(section): index for index, section in enumerate(sections)}
     next_section_index = 0
     current = ""
     for line in lines:
-        heading_text = _heading_text(line)
-        if heading_text:
+        heading_match = re.match(PR_HEADING_PATTERN, line.strip())
+        if heading_match:
+            heading_text = heading_match.group(1)
             if _section_key(heading_text) == "checklist":
                 current = ""
                 continue
-            heading = _normalize_pr_heading(line, sections)
+
+            heading_key = _section_key(heading_text)
+            heading = next((name for name in sections if _section_key(name) == heading_key), "")
+            if not heading:
+                heading_kind = _section_kind(heading_text)
+                if heading_kind:
+                    heading = next((name for name in sections if _section_kind(name) == heading_kind), "")
             if heading:
                 current = heading
                 next_section_index = max(next_section_index, section_positions[_section_key(heading)] + 1)
@@ -170,7 +154,11 @@ def normalize_pr(
                 continue
             current = ""
             continue
-        if current and line.strip().startswith(BULLET_PREFIX) and not _is_checklist_bullet(line):
+        if (
+            current
+            and line.strip().startswith(BULLET_PREFIX)
+            and not re.match(r"^-\s+\[[ xX]\]\s+", line.strip())
+        ):
             section_bullets[current].append(line.strip())
 
     for section in sections:

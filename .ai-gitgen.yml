@@ -5,6 +5,7 @@ commit:
     - docs
     - test
     - chore
+    - refactor
   scope_required: false
   subject_max_length: 72
   
