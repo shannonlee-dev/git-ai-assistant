@@ -36,9 +36,8 @@ from .constants import (
     PR_TITLE_MARKER,
 )
 from .git_tools import GitError, collect_changes
-from .output import (
-    AIGitgenConfig,
-    build_prompt,
+from .prompts import build_prompt
+from .responses import (
     format_commit_output,
     format_pr_output,
     normalize_commit,
@@ -47,6 +46,7 @@ from .output import (
     validate_pr,
 )
 from .safety import apply_safe_mode
+from .types import AIGitgenConfig
 
 
 class ConfigError(ValueError):
