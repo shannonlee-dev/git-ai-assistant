@@ -322,3 +322,37 @@ After
 요약하면 로그1은 변경 내용을 자연어로 설명하는 데 집중했고, 로그2는 팀 컨벤션을 출력 형식에 더 강하게 반영했습니다. 특히 커밋 메시지의 `feat:` prefix와 PR 본문의 `Checklist` 추가는 설정 파일 기반 보정이 실제 결과에 반영된 부분입니다.
 
 다만 두 버전 모두 `Run the project checks for this change.`처럼 테스트 방법이 추상적으로 남아 있습니다. 최종 제출용으로는 실제 실행 명령인 `python3 src/team_utils.py`와 기대 출력(`member_initials: SL`)을 사람이 한 번 더 보강하는 편이 좋습니다.
+
+## Safe-mode 마스킹 관측 결과
+
+`.env.example`에 이메일, API key, token, password 형태의 더미 값을 추가한 뒤 같은 변경 사항을 대상으로 safe-mode 적용 여부만 바꿔 커밋 메시지를 생성했습니다.
+
+safe-mode를 끈 실행:
+
+```bash
+./main.py commit --model gpt-4.1-mini --no-safe-mode --temperatur 0
+```
+
+결과:
+
+```text
+chore: update .env.example with new demo credentials and secrets
+```
+
+safe-mode를 켠 실행:
+
+```bash
+./main.py commit --model gpt-4.1-mini --temperature 0
+```
+
+결과:
+
+```text
+chore: update .env.example with additional masked tokens and password p…
+```
+
+비교하면 `--no-safe-mode`에서는 diff 원문에 포함된 더미 credential 값을 모델이 그대로 읽을 수 있어 `demo credentials and secrets`처럼 값의 의도를 비교적 자연스럽게 요약했습니다. 반면 safe-mode 기본 실행에서는 민감정보 패턴 4건이 `<MASKED_TOKEN>`으로 치환되어 모델이 실제 값을 볼 수 없었고, 그 영향으로 `masked tokens`라는 표현이 커밋 메시지에 직접 나타났습니다.
+
+즉 safe-mode는 단순히 로그의 마스킹 횟수만 바꾸는 것이 아니라, AI에 전달되는 diff의 의미 정보도 줄이기 때문에 생성되는 커밋 메시지의 표현까지 달라질 수 있습니다. 이 실험에서는 safe-mode 적용 시 `마스킹 4건`이 발생했고, 그 결과가 커밋 메시지 문구 차이로 관측되었습니다.
+
+
