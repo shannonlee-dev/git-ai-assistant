@@ -25,12 +25,21 @@ def build_prompt(
     if mode not in {COMMAND_COMMIT, COMMAND_PR}:
         raise ValueError(f"Unsupported prompt mode: {mode}")
 
-    file_list = "\n".join(f"{BULLET_PREFIX}{name}" for name in files) or f"{BULLET_PREFIX}unknown"
+    file_list = (
+        "\n".join(f"{BULLET_PREFIX}{name}" for name in files)
+        or f"{BULLET_PREFIX}unknown"
+    )
     if mode == COMMAND_COMMIT:
         commit = config["commit"]
-        scope_rule = "A scope is required." if commit["scope_required"] else "Do not add a scope unless necessary."
+        scope_rule = (
+            "A scope is required."
+            if commit["scope_required"]
+            else "Do not add a scope unless necessary."
+        )
         scope_schema = "(<scope>)" if commit["scope_required"] else "[(<scope>)]"
-        output_contract = f'<one-of: {", ".join(commit["prefixes"])}>{scope_schema}: <subject>'
+        output_contract = (
+            f"<one-of: {', '.join(commit['prefixes'])}>{scope_schema}: <subject>"
+        )
         task = dedent(
             f"""
             ## Role
@@ -56,11 +65,14 @@ def build_prompt(
         ).strip()
     elif mode == COMMAND_PR:
         pr = config["pr"]
-        sections = ", ".join(f"{MARKDOWN_HEADING_PREFIX} {section}" for section in pr["sections"])
+        sections = ", ".join(
+            f"{MARKDOWN_HEADING_PREFIX} {section}" for section in pr["sections"]
+        )
         checklist = ""
         if pr["checklist"]:
-            checklist = f"Include a final {MARKDOWN_HEADING_PREFIX} Checklist section with these unchecked items: " + ", ".join(
-                pr["checklist"]
+            checklist = (
+                f"Include a final {MARKDOWN_HEADING_PREFIX} Checklist section with these unchecked items: "
+                + ", ".join(pr["checklist"])
             )
         schema_sections = "\n\n".join(
             f"{MARKDOWN_HEADING_PREFIX} {section}\n{BULLET_PREFIX}<{section.lower()}-bullet>"
@@ -68,7 +80,9 @@ def build_prompt(
         )
         checklist_schema = ""
         if pr["checklist"]:
-            checklist_schema = "\n\n## Checklist\n" + "\n".join(f"- [ ] {item}" for item in pr["checklist"])
+            checklist_schema = "\n\n## Checklist\n" + "\n".join(
+                f"- [ ] {item}" for item in pr["checklist"]
+            )
         output_contract = f"<pr-title>\n\n{schema_sections}{checklist_schema}"
         task = dedent(
             f"""

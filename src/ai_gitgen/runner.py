@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import argparse
 import os
-from pathlib import Path
 import sys
+from pathlib import Path
 
 from .ai_client import AIClient, APIError
 from .config import ConfigError, describe_config, load_ai_gitgen_config
@@ -57,7 +57,9 @@ def run_generation(args: argparse.Namespace) -> int:
         print_config_error(exc)
         return EXIT_USAGE_ERROR
 
-    safety = apply_safe_mode(changes.diff, args.safe_mode, args.max_files, args.max_diff_lines)
+    safety = apply_safe_mode(
+        changes.diff, args.safe_mode, args.max_files, args.max_diff_lines
+    )
     print(f"[INFO] Git diff 수집 완료: {changes.diff_line_count}줄")
     if args.safe_mode:
         print(
@@ -78,11 +80,20 @@ def run_generation(args: argparse.Namespace) -> int:
 
     api_key = os.getenv(AI_API_KEY_ENV)
     if not api_key:
-        print('[ERROR] AI_API_KEY 환경변수가 설정되지 않았습니다. 예) export AI_API_KEY="YOUR_KEY"', file=sys.stderr)
+        print(
+            '[ERROR] AI_API_KEY 환경변수가 설정되지 않았습니다. 예) export AI_API_KEY="YOUR_KEY"',
+            file=sys.stderr,
+        )
         return EXIT_USAGE_ERROR
 
-    prompt_files = changes.changed_files[: args.max_files] if args.safe_mode else changes.changed_files
-    messages = build_prompt(args.command, changes.status, safety.text, prompt_files, config)
+    prompt_files = (
+        changes.changed_files[: args.max_files]
+        if args.safe_mode
+        else changes.changed_files
+    )
+    messages = build_prompt(
+        args.command, changes.status, safety.text, prompt_files, config
+    )
     client = AIClient(api_key=api_key, base_url=args.api_base_url)
     print("[INFO] AI API 요청 중...")
     try:
@@ -102,7 +113,10 @@ def run_generation(args: argparse.Namespace) -> int:
         message = normalize_commit(raw, changes.changed_files, config)
         ok, errors = validate_commit(message, config)
         if not ok:
-            print("[ERROR] 생성된 커밋 메시지 검증 실패: " + "; ".join(errors), file=sys.stderr)
+            print(
+                "[ERROR] 생성된 커밋 메시지 검증 실패: " + "; ".join(errors),
+                file=sys.stderr,
+            )
             return EXIT_API_ERROR
         print("[DONE] 커밋 메시지 생성 완료")
         print()
@@ -112,7 +126,10 @@ def run_generation(args: argparse.Namespace) -> int:
         title, body = normalize_pr(raw, changes.changed_files, config)
         ok, errors = validate_pr(title, body, config)
         if not ok:
-            print("[ERROR] 생성된 PR 초안 검증 실패: " + "; ".join(errors), file=sys.stderr)
+            print(
+                "[ERROR] 생성된 PR 초안 검증 실패: " + "; ".join(errors),
+                file=sys.stderr,
+            )
             return EXIT_API_ERROR
         print("[DONE] PR 초안 생성 완료")
         print()

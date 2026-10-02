@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from .config_parser import parse_rules
 from .constants import DEFAULT_CONFIG_FILE
 from .types import AIGitgenConfig
 
@@ -13,17 +14,21 @@ class ConfigError(ValueError):
     """Raised when .ai-gitgen.yml cannot drive generation safely."""
 
 
-def load_ai_gitgen_config(root: Path, config_path: str = DEFAULT_CONFIG_FILE) -> AIGitgenConfig:
+def load_ai_gitgen_config(
+    root: Path, config_path: str = DEFAULT_CONFIG_FILE
+) -> AIGitgenConfig:
     path = resolve_config_path(root, config_path)
     if not path.exists():
         raise ConfigError(f"{config_path} 파일이 필요합니다.")
 
-    data = _parse_simple_yaml(path.read_text(encoding="utf-8"))
+    data = parse_rules(path.read_text(encoding="utf-8"))
     config: AIGitgenConfig = {
         "commit": {
             "prefixes": _as_tuple(_config_value(data, "commit.prefixes")),
             "scope_required": _as_bool(_config_value(data, "commit.scope_required")),
-            "subject_max_length": _as_int(_config_value(data, "commit.subject_max_length")),
+            "subject_max_length": _as_int(
+                _config_value(data, "commit.subject_max_length")
+            ),
         },
         "pr": {
             "sections": _as_tuple(_config_value(data, "pr.sections")),
@@ -45,9 +50,12 @@ def resolve_config_path(root: Path, config_path: str = DEFAULT_CONFIG_FILE) -> P
     if repo_path.exists():
         return repo_path
 
-    tool_path = Path(__file__).resolve().parent.parent / path
+    tool_path = Path(__file__).resolve().parents[2] / path
     if config_path == DEFAULT_CONFIG_FILE and tool_path.exists():
         return tool_path
+
+    if config_path == DEFAULT_CONFIG_FILE:
+        return Path(__file__).resolve().parent / "default-rules.yml"
 
     return repo_path
 
@@ -57,7 +65,9 @@ def validate_config(config: AIGitgenConfig) -> None:
     pr = config["pr"]
     if not commit["prefixes"]:
         raise ConfigError("commit.prefixes must include at least one prefix.")
-    invalid_prefixes = [prefix for prefix in commit["prefixes"] if not prefix.islower() or " " in prefix]
+    invalid_prefixes = [
+        prefix for prefix in commit["prefixes"] if not prefix.islower() or " " in prefix
+    ]
     if invalid_prefixes:
         raise ConfigError("commit.prefixes must be lowercase words without spaces.")
     if commit["subject_max_length"] < 10:
@@ -133,70 +143,3 @@ def _as_int(value: Any) -> int:
         return int(value)
     except (TypeError, ValueError) as exc:
         raise ConfigError("commit.subject_max_length must be an integer.") from exc
-
-
-def _parse_simple_yaml(text: str) -> dict[str, dict[str, Any]]:
-    data: dict[str, dict[str, Any]] = {}
-    section = ""
-    list_key = ""
-
-    for raw_line in text.splitlines():
-        line = _strip_comment(raw_line).rstrip()
-        if not line.strip():
-            continue
-
-        if not line.startswith((" ", "\t")):
-            key = line.strip()
-            if key.endswith(":"):
-                section = key[:-1].strip()
-                data.setdefault(section, {})
-                list_key = ""
-            continue
-
-        if not section:
-            continue
-
-        stripped = line.strip()
-        if stripped.startswith("- ") and list_key:
-            data[section].setdefault(list_key, []).append(_parse_scalar(stripped[2:].strip()))
-            continue
-
-        if ":" not in stripped:
-            continue
-
-        key, value = stripped.split(":", 1)
-        key = key.strip()
-        value = value.strip()
-        if value:
-            data[section][key] = _parse_scalar(value)
-            list_key = ""
-        else:
-            data[section][key] = []
-            list_key = key
-
-    return data
-
-
-def _strip_comment(line: str) -> str:
-    quote = ""
-    for char_index, char in enumerate(line):
-        if char in {"'", '"'}:
-            quote = "" if quote == char else char
-        elif char == "#" and not quote:
-            return line[:char_index]
-    return line
-
-
-def _parse_scalar(value: str) -> Any:
-    cleaned = value.strip().strip('"').strip("'")
-    if cleaned.lower() in {"true", "false"}:
-        return cleaned.lower() == "true"
-    if cleaned.startswith("[") and cleaned.endswith("]"):
-        inner = cleaned[1:-1].strip()
-        if not inner:
-            return []
-        return [_parse_scalar(part.strip()) for part in inner.split(",")]
-    try:
-        return int(cleaned)
-    except ValueError:
-        return cleaned

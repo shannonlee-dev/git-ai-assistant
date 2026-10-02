@@ -1,0 +1,23 @@
+commit:
+  prefixes:
+    - feat
+    - fix
+    - docs
+    - test
+    - chore
+    - refactor
+  scope_required: false
+  subject_max_length: 100
+
+pr:
+  title_max_length: 80
+  sections:
+    - What
+    - Why
+    - How
+  tone: concise, factual, review-focused, and action-oriented
+  checklist:
+    - Latest main reflected before merge
+    - Conflicts resolved
+    - Validation or test result recorded
+    - Review comments resolved

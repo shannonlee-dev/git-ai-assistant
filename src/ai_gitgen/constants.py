@@ -1,7 +1,9 @@
 """Shared constants for the AI Git generator."""
 
 DEFAULT_MODEL = "gemini-3.5-flash"
-DEFAULT_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+DEFAULT_API_BASE_URL = (
+    "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+)
 DEFAULT_CONFIG_FILE = ".ai-gitgen.yml"
 DEFAULT_TEMPERATURE = 0.2
 DEFAULT_MAX_TOKENS = 700
@@ -19,7 +21,7 @@ COMMAND_COMMIT = "commit"
 COMMAND_PR = "pr"
 COMMAND_VALIDATE_OUTPUT = "validate-output"
 
-CLI_PROG = "main.py"
+CLI_PROG = "git-ai"
 
 EXIT_SUCCESS = 0
 EXIT_API_ERROR = 1
@@ -40,13 +42,17 @@ DEFAULT_WHY_BULLET = "- Capture the reason for the current Git changes."
 DEFAULT_WHAT_BULLET = "- Summarize the implementation changes."
 DEFAULT_HOW_TO_TEST_BULLET = "- Run the project checks for this change."
 
-STRIP_LABEL_PATTERN = r"^(#+\s*)?(-\s*)?(commit message|commit title|pr title|title)\s*[:：-]\s*"
+STRIP_LABEL_PATTERN = (
+    r"^(#+\s*)?(-\s*)?(commit message|commit title|pr title|title)\s*[:：-]\s*"
+)
 PR_HEADING_PATTERN = r"^##\s+(.+?)\s*$"
 WHITESPACE_PATTERN = r"\s+"
 PR_BULLET_PATTERN = r"(?m)^-\s+\S+"
 HEADING_SUFFIX_CHARS = ":："
 
-SECRET_ASSIGNMENT_PATTERN = r"(?i)(api[_-]?key|token|secret|password)(\s*[:=]\s*)([^\s'\"`]+)"
+SECRET_ASSIGNMENT_PATTERN = (
+    r"(?i)(api[_-]?key|token|secret|password)(\s*[:=]\s*)([^\s'\"`]+)"
+)
 OPENAI_SECRET_PATTERN = r"\bsk-[A-Za-z0-9_-]{12,}\b"
 EMAIL_PATTERN = r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b"
 AWS_ACCESS_KEY_PATTERN = r"\bAKIA[0-9A-Z]{16}\b"

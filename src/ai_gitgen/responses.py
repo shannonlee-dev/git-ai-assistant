@@ -31,9 +31,14 @@ from .types import AIGitgenConfig
 
 def _trim_line(text: str, limit: int) -> str:
     clean = " ".join(text.strip().split())
-    return clean if len(clean) <= limit else clean[: limit - len(TITLE_ELLIPSIS)].rstrip() + TITLE_ELLIPSIS
+    return (
+        clean
+        if len(clean) <= limit
+        else clean[: limit - len(TITLE_ELLIPSIS)].rstrip() + TITLE_ELLIPSIS
+    )
 
-def _strip_label(line: str) -> str:  #쓸데없는 문장 삭제.
+
+def _strip_label(line: str) -> str:  # 쓸데없는 문장 삭제.
     return re.sub(
         STRIP_LABEL_PATTERN,
         "",
@@ -53,7 +58,9 @@ def _content_lines(raw: str) -> list[str]:
 
 
 def _section_key(text: str) -> str:
-    return re.sub(WHITESPACE_PATTERN, " ", text.strip().rstrip(HEADING_SUFFIX_CHARS)).lower()
+    return re.sub(
+        WHITESPACE_PATTERN, " ", text.strip().rstrip(HEADING_SUFFIX_CHARS)
+    ).lower()
 
 
 def _section_kind(section: str) -> str:
@@ -91,8 +98,14 @@ def normalize_commit(
 ) -> str:
     commit = config["commit"]
     candidates = [_strip_label(line) for line in _content_lines(raw)]
-    candidates = [line for line in candidates if line and not line.startswith(MARKDOWN_HEADING_PREFIX)]
-    title = next((line for line in candidates if _commit_title_matches_config(line, config)), "")
+    candidates = [
+        line
+        for line in candidates
+        if line and not line.startswith(MARKDOWN_HEADING_PREFIX)
+    ]
+    title = next(
+        (line for line in candidates if _commit_title_matches_config(line, config)), ""
+    )
     if not title:
         title = candidates[0] if candidates else ""
     if not title:
@@ -127,7 +140,9 @@ def normalize_pr(
     title = _trim_line(title, pr["title_max_length"])
 
     section_bullets: dict[str, list[str]] = {name: [] for name in sections}
-    section_positions = {_section_key(section): index for index, section in enumerate(sections)}
+    section_positions = {
+        _section_key(section): index for index, section in enumerate(sections)
+    }
     next_section_index = 0
     current = ""
     for line in lines:
@@ -139,14 +154,25 @@ def normalize_pr(
                 continue
 
             heading_key = _section_key(heading_text)
-            heading = next((name for name in sections if _section_key(name) == heading_key), "")
+            heading = next(
+                (name for name in sections if _section_key(name) == heading_key), ""
+            )
             if not heading:
                 heading_kind = _section_kind(heading_text)
                 if heading_kind:
-                    heading = next((name for name in sections if _section_kind(name) == heading_kind), "")
+                    heading = next(
+                        (
+                            name
+                            for name in sections
+                            if _section_kind(name) == heading_kind
+                        ),
+                        "",
+                    )
             if heading:
                 current = heading
-                next_section_index = max(next_section_index, section_positions[_section_key(heading)] + 1)
+                next_section_index = max(
+                    next_section_index, section_positions[_section_key(heading)] + 1
+                )
                 continue
             if next_section_index < len(sections):
                 current = sections[next_section_index]
@@ -168,7 +194,10 @@ def normalize_pr(
         if section_kind == "why":
             section_bullets[section] = [DEFAULT_WHY_BULLET]
         elif section_kind == "what" and files:
-            section_bullets[section] = [f"{BULLET_PREFIX}Update {name}" for name in files[:MAX_FALLBACK_WHAT_FILES]]
+            section_bullets[section] = [
+                f"{BULLET_PREFIX}Update {name}"
+                for name in files[:MAX_FALLBACK_WHAT_FILES]
+            ]
         elif section_kind == "test":
             section_bullets[section] = [DEFAULT_HOW_TO_TEST_BULLET]
         else:

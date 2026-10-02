@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import re
+from dataclasses import dataclass
 
 from .constants import (
     AWS_ACCESS_KEY_PATTERN,
@@ -13,7 +13,6 @@ from .constants import (
     OPENAI_SECRET_PATTERN,
     SECRET_ASSIGNMENT_PATTERN,
 )
-
 
 SECRET_PATTERNS = [
     re.compile(SECRET_ASSIGNMENT_PATTERN),
@@ -73,7 +72,9 @@ def limit_diff(text: str, max_files: int, max_lines: int) -> tuple[str, int, int
     return "\n".join(kept), omitted_lines, omitted_files
 
 
-def apply_safe_mode(text: str, enabled: bool, max_files: int, max_lines: int) -> SafetyResult:
+def apply_safe_mode(
+    text: str, enabled: bool, max_files: int, max_lines: int
+) -> SafetyResult:
     if not enabled:
         return SafetyResult(
             text=text,

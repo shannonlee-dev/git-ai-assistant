@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-import subprocess
 
 from .constants import (
     DETACHED_BRANCH_NAME,
@@ -101,7 +101,9 @@ def filter_staged_status(status: str) -> str:
 def collect_changes(cwd: Path) -> GitChangeSet:
     root = ensure_project_root(cwd)
     status = filter_staged_status(_run_git(list(GIT_STATUS_SHORT_ARGS), root).rstrip())
-    branch = _run_git(list(GIT_BRANCH_CURRENT_ARGS), root).strip() or DETACHED_BRANCH_NAME
+    branch = (
+        _run_git(list(GIT_BRANCH_CURRENT_ARGS), root).strip() or DETACHED_BRANCH_NAME
+    )
     staged = _run_git(list(GIT_STAGED_DIFF_ARGS), root).rstrip()
     return GitChangeSet(
         root=root,

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 import json
+from collections.abc import Mapping
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -32,7 +32,6 @@ from .constants import (
     HTTP_JSON_CONTENT_TYPE,
     HTTP_METHOD_POST,
     HTTP_RETRY_AFTER_HEADER,
-    HTTP_STATUS_HINTS,
     MOCK_ERROR_URL_PREFIX,
     MOCK_PR_URL_PREFIX,
     MOCK_URL_PREFIX,
@@ -68,7 +67,9 @@ ERROR_STATUS_KEY = "status"
 
 
 class AIClient:
-    def __init__(self, api_key: str, base_url: str, timeout: float = DEFAULT_API_TIMEOUT) -> None:
+    def __init__(
+        self, api_key: str, base_url: str, timeout: float = DEFAULT_API_TIMEOUT
+    ) -> None:
         self.api_key = api_key
         self.base_url = base_url
         self.timeout = timeout
@@ -122,7 +123,11 @@ class AIClient:
 
     def _generate_mock(self) -> str:
         if self.base_url.startswith(MOCK_ERROR_URL_PREFIX):
-            raise APIError(_format_error(401, json.dumps({API_ERROR_MESSAGE_KEY: "mock auth failed"})))
+            raise APIError(
+                _format_error(
+                    401, json.dumps({API_ERROR_MESSAGE_KEY: "mock auth failed"})
+                )
+            )
         if self.base_url.startswith(MOCK_PR_URL_PREFIX):
             return """feat: add PR summary
 
@@ -151,7 +156,9 @@ def _format_network_error(reason: Any) -> str:
     return f"네트워크 오류: {reason}. 인터넷 연결, API URL, 프록시 설정을 확인하세요."
 
 
-def _format_error(status_code: int, body: str, headers: Mapping[str, str] | None = None) -> str:
+def _format_error(
+    status_code: int, body: str, headers: Mapping[str, str] | None = None
+) -> str:
     message = _extract_error_message(body)
     message = str(message).strip() or EMPTY_ERROR_RESPONSE
     parts = [f"AI API 오류({status_code}): {message}"]
@@ -187,7 +194,9 @@ def _extract_error_message(body: str) -> str:
             _extract_message_from_mapping(item) if isinstance(item, dict) else str(item)
             for item in data
         ]
-        return "; ".join(message for message in messages if message) or json.dumps(data, ensure_ascii=False)
+        return "; ".join(message for message in messages if message) or json.dumps(
+            data, ensure_ascii=False
+        )
     return str(data)
 
 
