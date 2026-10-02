@@ -71,7 +71,7 @@ uv run --frozen git-ai pr --safe-mode
 | `AI_API_BASE_URL` | OpenAI 호환 Chat Completions 요청 주소 |
 | `AI_MODEL` | 모델 기본값 재정의; `--model` 옵션으로도 지정 가능 |
 
-현재 코드 기본값은 Gemini 호환 주소와 `gemini-3.5-flash`입니다. 기본 문자열은 공급자의 모델 제공 상태를 보장하지 않으므로 계정에서 사용할 수 있는 모델과 요청 주소를 지정합니다. OpenAI 설정은 `.env.openai.example`을 참고합니다.
+현재 코드 기본값은 Gemini 호환 주소와 `gemini-3.5-flash`입니다. 기본 문자열은 공급자의 모델 제공 상태를 보장하지 않으므로 계정에서 사용할 수 있는 모델과 요청 주소를 지정합니다. OpenAI를 사용할 때는 `.env.openai.example`을 `.env`로 복사합니다. 이 예시는 OpenAI 요청 주소와 `gpt-4.1-mini` 모델을 함께 설정하며, 키와 모델을 계정에 맞게 수정한 뒤 `. ./.env`로 불러옵니다.
 
 ## 안전 모드와 출력 계약
 
