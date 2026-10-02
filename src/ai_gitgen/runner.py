@@ -33,7 +33,7 @@ from .responses import (
     validate_commit,
     validate_pr,
 )
-from .safety import apply_safe_mode
+from .safety import apply_safe_mode, mask_sensitive_text
 
 
 def run_generation(args: argparse.Namespace) -> int:
@@ -86,13 +86,18 @@ def run_generation(args: argparse.Namespace) -> int:
         )
         return EXIT_USAGE_ERROR
 
-    prompt_files = (
-        changes.changed_files[: args.max_files]
-        if args.safe_mode
-        else changes.changed_files
-    )
+    prompt_files = changes.changed_files
+    prompt_status = changes.status
+    if args.safe_mode:
+        prompt_files = [
+            mask_sensitive_text(name)[0]
+            for name in changes.changed_files[: args.max_files]
+        ]
+        prompt_status = mask_sensitive_text(
+            "\n".join(changes.status.splitlines()[: args.max_files])
+        )[0]
     messages = build_prompt(
-        args.command, changes.status, safety.text, prompt_files, config
+        args.command, prompt_status, safety.text, prompt_files, config
     )
     client = AIClient(api_key=api_key, base_url=args.api_base_url)
     print("[INFO] AI API 요청 중...")
